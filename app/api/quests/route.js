@@ -18,6 +18,7 @@ export async function GET(request) {
     }
 
     const userId = decoded.userId;
+
     const result = await pool.query(
       `SELECT 
         q.*,
@@ -39,11 +40,17 @@ export async function GET(request) {
       [userId]
     );
 
-    // Mapear completion_percentage para progress para compatibilidade com o frontend
-    const quests = result.rows.map(quest => ({
-      ...quest,
-      progress: Math.round(quest.completion_percentage || 0)
-    }));
+    // Mapear completion_percentage → progress e XP (da linha ou fallback por dificuldade)
+    const XP_BY_DIFFICULTY = { easy: 50, medium: 100, hard: 200, epic: 400 };
+    const quests = result.rows.map(quest => {
+      const xpFromRow = Number(quest.estimated_xp ?? quest.xp_reward ?? quest.current_xp ?? 0) || 0;
+      const xpOffered = xpFromRow > 0 ? xpFromRow : (XP_BY_DIFFICULTY[quest.difficulty] ?? 100);
+      return {
+        ...quest,
+        progress: Math.round(quest.completion_percentage || 0),
+        xp_offered: xpOffered
+      };
+    });
 
     return NextResponse.json({ quests });
   } catch (error) {

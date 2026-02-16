@@ -303,7 +303,7 @@ export default function QuestDetailPage() {
             Estimativa: {computed?.total_estimated_hours?.toFixed(1) || 0}h
           </div>
           <div style={{ fontSize: '0.875rem', color: '#fbbf24', marginBottom: '0.25rem' }}>
-            XP: +{quest.xp_reward || 100}
+            XP: +{quest.xp_offered ?? quest.xp_reward ?? 100}
           </div>
         </div>
       </div>
@@ -319,7 +319,7 @@ export default function QuestDetailPage() {
               <div style={{ height: '100%', background: '#22c55e', width: `${computed?.completion_percentage || 0}%` }}></div>
             </div>
             <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-              Tasks: {computed?.completed_tasks || 0}/{computed?.total_tasks || 0} • XP: +{quest.xp_reward || 100}
+              Tasks: {computed?.completed_tasks || 0}/{computed?.total_tasks || 0} • XP: +{quest.xp_offered ?? quest.xp_reward ?? 100}
             </div>
           </div>
         )}

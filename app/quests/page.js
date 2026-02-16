@@ -116,7 +116,7 @@ export default function QuestsPage() {
                     <ProgressBar progress={quest.progress || 0} total={100} />
                   </div>
                   <p style={{ fontSize: '0.82rem', color: 'var(--text-soft)' }}>
-                    XP: {quest.xp_offered || 0} · Dificuldade: {'⭐'.repeat(quest.difficulty || 3)}
+                    XP: {quest.xp_offered ?? 0} · Dificuldade: {'⭐'.repeat({ easy: 1, medium: 2, hard: 3, epic: 4 }[quest.difficulty] ?? 2)}
                   </p>
                 </Link>
                 <button

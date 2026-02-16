@@ -77,9 +77,13 @@ export default function AnalyticsPage() {
   const level = analytics.level || { level: 1, current_xp: 0, xp_to_next_level: 100 };
   const streak = analytics.streak || { longest_streak: 0 };
 
+  const levelCurrent = Number(level.current_xp || 0);
+  const levelToNext = Number(level.xp_to_next_level || 100);
+  const levelCap = levelCurrent + levelToNext; // XP in current level = current + remaining to next
+  const levelPercent = levelCap > 0 ? Math.min(100, Math.round((levelCurrent / levelCap) * 100)) : 0;
+
   const maxMilestones = Math.max(...productivityByDay.map((d) => Number(d.milestones || d.milestones_count || 0)), 1);
   const maxXP = Math.max(...productivityByDay.map((d) => Number(d.xp || d.xp_earned || 0)), 1);
-  const levelPercent = Math.min(100, Math.round((Number(level.current_xp || 0) / Math.max(Number(level.xp_to_next_level || 100), 1)) * 100));
 
   return (
     <div className="app-shell">
@@ -116,7 +120,7 @@ export default function AnalyticsPage() {
             marginBottom: '1rem',
           }}
         >
-          <MetricCard title={`⚡ ${t('currentLevel')}`} value={`Nível ${level.level || 1}`} sub={`${level.current_xp || 0} / ${level.xp_to_next_level || 100} XP`}>
+          <MetricCard title={`⚡ ${t('currentLevel')}`} value={`Nível ${level.level || 1}`} sub={`${levelCurrent} / ${levelCap} XP${levelToNext > 0 ? ` · ${levelToNext} para próximo` : ''}`}>
             <Progress value={levelPercent} color="var(--accent)" />
           </MetricCard>
           <MetricCard title="🔥 Streak" value={`${streak.longest_streak || 0} dias`} sub={t('bestStreak')} />

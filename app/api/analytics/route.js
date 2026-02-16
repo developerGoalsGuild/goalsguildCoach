@@ -32,19 +32,21 @@ export async function GET(request) {
       console.warn('[Analytics] Could not detect milestones table:', e.message);
     }
 
-    // Detect XP column (xp_reward, estimated_xp, or current_xp)
-    let xpColumn = null;
+    // XP: same priority as quests (estimated_xp, xp_reward, current_xp); build COALESCE from existing columns only
+    const xpColPriority = ['estimated_xp', 'xp_reward', 'current_xp'];
+    let xpColExpr = '0';
+    let xpColExprQ = '0';
     try {
       const xpColResult = await pool.query(
         `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'quests' AND column_name IN ('xp_reward', 'estimated_xp', 'current_xp')`
       );
-      if (xpColResult.rows.length > 0) {
-        xpColumn = xpColResult.rows[0].column_name;
+      const existing = (xpColResult.rows || []).map((r) => r.column_name);
+      const ordered = xpColPriority.filter((c) => existing.includes(c));
+      if (ordered.length > 0) {
+        xpColExpr = `COALESCE(${ordered.join(', ')}, 0)`;
+        xpColExprQ = `COALESCE(q.${ordered.join(', q.')}, 0)`;
       }
     } catch (_) {}
-
-    // Use detected XP column or default to 0 if none exists
-    const xpColExpr = xpColumn ? `COALESCE(${xpColumn}, 0)` : '0';
 
     // 1. General stats (all time) and total XP
     const generalStats = await pool.query(
@@ -207,8 +209,8 @@ export async function GET(request) {
         o.is_nlp_complete,
         COUNT(DISTINCT q.id) as quests_created,
         COUNT(DISTINCT CASE WHEN q.status = 'completed' THEN q.id END) as quests_completed,
-        COALESCE(SUM(CASE WHEN q.status = 'completed' THEN ${xpColExpr} ELSE 0 END), 0) as total_xp_earned,
-        COALESCE(SUM(${xpColExpr}), 0) as total_xp
+        COALESCE(SUM(CASE WHEN q.status = 'completed' THEN ${xpColExprQ} ELSE 0 END), 0) as total_xp_earned,
+        COALESCE(SUM(${xpColExprQ}), 0) as total_xp
        FROM goals o
        LEFT JOIN quests q ON q.parent_goal_id::text = o.id::text
        WHERE o.${COLS.goalsUser} = $1::text

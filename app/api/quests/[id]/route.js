@@ -37,6 +37,11 @@ export async function GET(request, context) {
 
     const quest = questResult.rows[0];
 
+    // XP: ler da linha (estimated_xp, xp_reward ou current_xp) e fallback por dificuldade
+    const xpFromRow = Number(quest.estimated_xp ?? quest.xp_reward ?? quest.current_xp ?? 0) || 0;
+    const XP_BY_DIFFICULTY = { easy: 50, medium: 100, hard: 200, epic: 400 };
+    const xpOffered = xpFromRow > 0 ? xpFromRow : (XP_BY_DIFFICULTY[quest.difficulty] ?? 100);
+
     // Get all tasks for this quest (tasks_table com session_id)
     const tasksResult = await pool.query(
       `SELECT id, title, description, status, estimated_hours, completed_at, created_at FROM ${TABLES.tasks} WHERE quest_id::text = $1::text AND ${COLS.questsUser} = $2::text ORDER BY created_at ASC`,
@@ -75,6 +80,7 @@ export async function GET(request, context) {
     return NextResponse.json({
       quest: {
         ...quest,
+        xp_offered: xpOffered,
         milestones: quest.milestones || [],
         milestones_summary: {
           completed: milestonesCompleted,
