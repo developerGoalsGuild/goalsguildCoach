@@ -1,0 +1,80 @@
+[
+  {
+    "page": "/",
+    "status": "ERROR",
+    "duration": 0,
+    "error": "fetch failed"
+  },
+  {
+    "page": "/login",
+    "status": "ERROR",
+    "duration": 0,
+    "error": "fetch failed"
+  },
+  {
+    "page": "/register",
+    "status": "ERROR",
+    "duration": 0,
+    "error": "fetch failed"
+  },
+  {
+    "page": "/home",
+    "status": "ERROR",
+    "duration": 0,
+    "error": "fetch failed"
+  },
+  {
+    "page": "/quests",
+    "status": "ERROR",
+    "duration": 0,
+    "error": "fetch failed"
+  },
+  {
+    "page": "/tasks",
+    "status": "ERROR",
+    "duration": 0,
+    "error": "fetch failed"
+  },
+  {
+    "page": "/coach",
+    "status": "ERROR",
+    "duration": 0,
+    "error": "fetch failed"
+  },
+  {
+    "page": "/objectives",
+    "status": "ERROR",
+    "duration": 0,
+    "error": "fetch failed"
+  },
+  {
+    "page": "/daily",
+    "status": "ERROR",
+    "duration": 0,
+    "error": "fetch failed"
+  },
+  {
+    "page": "/analytics",
+    "status": "ERROR",
+    "duration": 0,
+    "error": "fetch failed"
+  },
+  {
+    "page": "/reports",
+    "status": "ERROR",
+    "duration": 0,
+    "error": "fetch failed"
+  },
+  {
+    "page": "/achievements",
+    "status": "ERROR",
+    "duration": 0,
+    "error": "fetch failed"
+  },
+  {
+    "page": "/insights",
+    "status": "ERROR",
+    "duration": 0,
+    "error": "fetch failed"
+  }
+]

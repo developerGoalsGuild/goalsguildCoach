@@ -1,0 +1,15 @@
+{
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_APP_URL": "@app-url",
+    "POSTGRES_HOST": "@postgres-host",
+    "POSTGRES_PORT": "@postgres-port",
+    "POSTGRES_USER": "@postgres-user",
+    "POSTGRES_PASSWORD": "@postgres-password",
+    "POSTGRES_DB": "@postgres-db",
+    "OPENAI_API_KEY": "@openai-api-key"
+  }
+}

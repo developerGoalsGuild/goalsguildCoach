@@ -1,0 +1,74 @@
+[
+  {
+    "path": "/",
+    "name": "Home",
+    "status": 500,
+    "ok": false
+  },
+  {
+    "path": "/login",
+    "name": "Login",
+    "status": 500,
+    "ok": false
+  },
+  {
+    "path": "/register",
+    "name": "Register",
+    "status": 500,
+    "ok": false
+  },
+  {
+    "path": "/quests",
+    "name": "Quests",
+    "status": 500,
+    "ok": false
+  },
+  {
+    "path": "/tasks",
+    "name": "Tasks",
+    "status": 500,
+    "ok": false
+  },
+  {
+    "path": "/coach",
+    "name": "Coach",
+    "status": 500,
+    "ok": false
+  },
+  {
+    "path": "/objectives",
+    "name": "Objectives",
+    "status": 500,
+    "ok": false
+  },
+  {
+    "path": "/daily",
+    "name": "Daily Check-in",
+    "status": 500,
+    "ok": false
+  },
+  {
+    "path": "/analytics",
+    "name": "Analytics",
+    "status": 500,
+    "ok": false
+  },
+  {
+    "path": "/reports",
+    "name": "Reports",
+    "status": 500,
+    "ok": false
+  },
+  {
+    "path": "/achievements",
+    "name": "Achievements",
+    "status": 500,
+    "ok": false
+  },
+  {
+    "path": "/insights",
+    "name": "Insights",
+    "status": 500,
+    "ok": false
+  }
+]

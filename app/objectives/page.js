@@ -1,0 +1,312 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import TopNavigation from '../components/TopNavigation';
+import { useLocale, useTranslations } from '../lib/i18n';
+
+export default function ObjectivesPage() {
+  const router = useRouter();
+  const t = useTranslations('objectives');
+  const tc = useTranslations('common');
+  const { locale } = useLocale();
+  const [objectives, setObjectives] = useState([]);
+  const [reminders, setReminders] = useState([]);
+  const [selectedObjective, setSelectedObjective] = useState(null);
+  const [memoryEntries, setMemoryEntries] = useState([]);
+  const [nlpMemory, setNlpMemory] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showMemory, setShowMemory] = useState(false);
+  const [filterMode, setFilterMode] = useState('all');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    fetchObjectives();
+    fetchReminders();
+  }, []);
+
+  const fetchObjectives = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/goals', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      setObjectives(data.goals || []);
+    } catch (error) {
+      console.error('Error fetching objectives:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchReminders = async () => {
+    try {
+      const response = await fetch('/api/reminders');
+      const data = await response.json();
+      setReminders(data.reminders || []);
+    } catch (error) {
+      console.error('Error fetching reminders:', error);
+    }
+  };
+
+  const fetchMemoryEntries = async (objectiveId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/goals/${objectiveId}/memory`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      setMemoryEntries(data.entries || []);
+      setNlpMemory(data.nlpMemory || null);
+    } catch (error) {
+      console.error('Error fetching memory entries:', error);
+    }
+  };
+
+  const createQuest = async (objectiveId) => {
+    if (!confirm(t('createQuestConfirm'))) return;
+    try {
+      const response = await fetch('/api/quests/from-objective', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ objectiveId }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        alert(t('questCreated').replace('{count}', String(data.milestones || 0)));
+        router.push('/quests');
+      } else {
+        alert(t('createQuestError'));
+      }
+    } catch (error) {
+      console.error('Error creating quest:', error);
+      alert(t('createQuestError'));
+    }
+  };
+
+  const deleteObjective = async (objectiveId) => {
+    if (!confirm(t('deleteObjectiveConfirm'))) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/goals/${objectiveId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        fetchObjectives();
+        fetchReminders();
+      }
+    } catch (error) {
+      console.error('Error deleting objective:', error);
+    }
+  };
+
+  const deleteReminder = async (reminderId) => {
+    if (!confirm(t('stopReminderConfirm'))) return;
+    try {
+      const response = await fetch(`/api/reminders?id=${reminderId}`, { method: 'DELETE' });
+      if (response.ok) fetchReminders();
+    } catch (error) {
+      console.error('Error deleting reminder:', error);
+    }
+  };
+
+  const openMemory = async (objective) => {
+    setSelectedObjective(objective);
+    setShowMemory(true);
+    await fetchMemoryEntries(objective.id);
+  };
+
+  const closeMemory = () => {
+    setShowMemory(false);
+    setSelectedObjective(null);
+    setMemoryEntries([]);
+    setNlpMemory(null);
+  };
+
+  const filteredObjectives = objectives.filter((obj) => {
+    const title = (obj.title || obj.statement || '').toLowerCase();
+    const description = (obj.description || '').toLowerCase();
+    const query = search.trim().toLowerCase();
+
+    const matchesSearch = !query || title.includes(query) || description.includes(query);
+    if (!matchesSearch) return false;
+
+    if (filterMode === 'nlp') return Boolean(obj.is_nlp_complete);
+    if (filterMode === 'in_progress') return !obj.is_nlp_complete;
+    return true;
+  });
+
+  if (showMemory && selectedObjective) {
+    return (
+      <div className="app-shell">
+        <TopNavigation />
+        <main className="page-container">
+          <button onClick={closeMemory} className="btn btn-dark" style={{ marginBottom: '0.8rem' }}>
+            ← {t('backToObjectives')}
+          </button>
+          <section className="glass-card" style={{ padding: '1rem', marginBottom: '0.8rem' }}>
+            <h1 style={{ color: 'var(--accent-soft)', marginBottom: '0.4rem' }}>📝 {t('memoryTitle')}</h1>
+            <p style={{ color: 'var(--text-soft)' }}>{selectedObjective.statement || selectedObjective.title}</p>
+          </section>
+
+          {nlpMemory && (
+            <section className="glass-card" style={{ padding: '1rem', marginBottom: '0.8rem' }}>
+              <p style={{ color: 'var(--accent-soft)', fontWeight: 700, marginBottom: '0.4rem' }}>{t('talkCoach')}</p>
+              <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{nlpMemory.content}</p>
+            </section>
+          )}
+
+          <section style={{ display: 'grid', gap: '0.7rem' }}>
+            {memoryEntries.map((entry) => (
+              <article key={entry.id} className="feature-card">
+                <p style={{ color: 'var(--text-soft)', fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+                  {new Date(entry.created_at).toLocaleDateString(locale)} · {entry.entry_type}
+                </p>
+                {entry.entry_type === 'task_completed' && (
+                  <div>
+                    <p style={{ fontWeight: 700, color: 'var(--accent-soft)', marginBottom: '0.25rem' }}>
+                      ✅ {t('taskCompleted')}: {entry.content?.task_title || t('taskDefault')}
+                    </p>
+                    {entry.content?.observation && (
+                      <p style={{ color: 'var(--text-soft)', fontStyle: 'italic' }}>
+                        {t('observation')}: {entry.content.observation}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {entry.entry_type === 'milestone_completed' && (
+                  <div>
+                    <p style={{ fontWeight: 700, color: '#93c5fd', marginBottom: '0.25rem' }}>
+                      📍 {t('milestone')}: {entry.content?.milestone_title || t('milestoneDefault')}
+                    </p>
+                    {entry.content?.reflection && (
+                      <p style={{ color: 'var(--text-soft)', fontStyle: 'italic' }}>
+                        {t('reflection')}: {entry.content.reflection}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {entry.content?.gratitude && <p>🙏 {entry.content.gratitude}</p>}
+                {entry.content?.highlights && <p>✨ {entry.content.highlights}</p>}
+                {entry.content?.challenges && <p>⚠️ {entry.content.challenges}</p>}
+                {entry.content?.tomorrow_goals && <p>🚀 {entry.content.tomorrow_goals}</p>}
+              </article>
+            ))}
+          </section>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-shell">
+      <TopNavigation />
+      <main className="page-container">
+        <section className="hero glass-card" style={{ marginBottom: '0.9rem' }}>
+          <h1>🎯 {t('title')}</h1>
+          <p>{t('headerSubtitle')}</p>
+        </section>
+
+        <section
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '0.7rem',
+            marginBottom: '0.9rem',
+          }}
+        >
+          <div className="glass-card" style={{ padding: '1rem' }}>
+            <p style={{ color: 'var(--text-soft)', marginBottom: '0.45rem' }}>{t('actions')}</p>
+            <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+              <button onClick={() => router.push('/coach')} className="btn btn-primary">
+                🤖 {t('talkCoach')}
+              </button>
+              <Link href="/reminders/new" className="btn btn-dark">
+                🔔 {t('newReminder')}
+              </Link>
+            </div>
+          </div>
+
+          <div className="glass-card" style={{ padding: '1rem' }}>
+            <p style={{ color: 'var(--text-soft)', marginBottom: '0.45rem' }}>{t('remindersActive')}</p>
+            {reminders.length === 0 ? (
+              <p style={{ color: 'var(--text-soft)' }}>{t('noneActiveReminders')}</p>
+            ) : (
+              reminders.slice(0, 3).map((r) => (
+                <div key={r.id} style={{ marginBottom: '0.5rem' }}>
+                  <p style={{ fontSize: '0.85rem' }}>{r.statement?.substring(0, 50)}...</p>
+                  <button onClick={() => deleteReminder(r.id)} className="btn btn-dark" style={{ padding: '0.35rem 0.55rem', fontSize: '0.75rem' }}>
+                    {t('stop')}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="glass-card" style={{ padding: '1rem', marginBottom: '0.9rem' }}>
+          <p style={{ color: 'var(--text-soft)', marginBottom: '0.45rem' }}>{t('filters')}</p>
+          <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginBottom: '0.55rem' }}>
+            <button onClick={() => setFilterMode('all')} className={`btn ${filterMode === 'all' ? 'btn-primary' : 'btn-dark'}`}>
+              {t('all')}
+            </button>
+            <button onClick={() => setFilterMode('nlp')} className={`btn ${filterMode === 'nlp' ? 'btn-primary' : 'btn-dark'}`}>
+              {t('nlpComplete')}
+            </button>
+            <button onClick={() => setFilterMode('in_progress')} className={`btn ${filterMode === 'in_progress' ? 'btn-primary' : 'btn-dark'}`}>
+              {t('inProgress')}
+            </button>
+          </div>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('searchPlaceholder')}
+          />
+        </section>
+
+        {isLoading ? (
+          <div className="glass-card" style={{ padding: '1rem', color: 'var(--text-soft)' }}>
+            {tc('loading')}
+          </div>
+        ) : filteredObjectives.length === 0 ? (
+          <div className="glass-card" style={{ padding: '1.2rem', textAlign: 'center' }}>
+            <p style={{ color: 'var(--text-soft)', marginBottom: '0.7rem' }}>{t('noneFiltered')}</p>
+            <button onClick={() => router.push('/coach')} className="btn btn-primary">
+              {t('talkCoach')}
+            </button>
+          </div>
+        ) : (
+          <section style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.7rem' }}>
+            {filteredObjectives.map((obj) => (
+              <article key={obj.id} className="feature-card">
+                <h3>{obj.title || obj.statement}</h3>
+                {obj.description && <p>{obj.description}</p>}
+                <p style={{ fontSize: '0.8rem' }}>{obj.is_nlp_complete ? `✨ ${t('statusNlpComplete')}` : t('statusInProgress')}</p>
+                <div style={{ marginTop: '0.65rem', display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                  <button onClick={() => openMemory(obj)} className="btn btn-dark">
+                    📝 {t('memory')}
+                  </button>
+                  <Link href={`/reminders/new?objectiveId=${obj.id}`} className="btn btn-dark">
+                    🔔 {t('reminders')}
+                  </Link>
+                  <button onClick={() => createQuest(obj.id)} className="btn btn-primary">
+                    {t('createQuest')}
+                  </button>
+                  <button onClick={() => deleteObjective(obj.id)} className="btn btn-dark">
+                    🗑️ {tc('delete')}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
