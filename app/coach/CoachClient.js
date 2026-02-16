@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { isAuthenticated, getToken } from '../lib/auth-helpers';
 import { useTranslations, useLocale } from '../lib/i18n';
-import { getAllPredefinedPersonas, getPredefinedPersona, getWelcomeMessage } from '../lib/personas';
+import { getAllPredefinedPersonas, getPredefinedPersona, getWelcomeMessage, getPersonaDisplayName, getPersonaDisplayDescription } from '../lib/personas';
 
 export default function CoachClient() {
   const router = useRouter();
@@ -77,7 +77,7 @@ export default function CoachClient() {
               setSelectedPreset(data.persona.theme);
               const preset = getPredefinedPersona(data.persona.theme);
               if (preset) {
-                setCurrentPersonaName(preset.name);
+                setCurrentPersonaName(getPersonaDisplayName(preset, locale));
                 // Atualizar mensagem inicial apenas se ainda não foi atualizada
                 if (!welcomeMessageSetRef.current) {
                   const welcomeMsg = getWelcomeMessage(data.persona.theme, locale);
@@ -140,7 +140,7 @@ export default function CoachClient() {
     const preset = getPredefinedPersona(presetId);
     if (preset) {
       setSelectedPreset(presetId);
-      setCurrentPersonaName(preset.name);
+      setCurrentPersonaName(getPersonaDisplayName(preset, locale));
       setPersona({
         tone: preset.tone,
         specialization: preset.specialization,
@@ -186,7 +186,7 @@ export default function CoachClient() {
         if (persona.theme) {
           const preset = getPredefinedPersona(persona.theme);
           if (preset) {
-            setCurrentPersonaName(preset.name);
+            setCurrentPersonaName(getPersonaDisplayName(preset, locale));
             // Atualizar mensagem inicial apenas se ainda for a primeira mensagem
             const welcomeMsg = getWelcomeMessage(persona.theme, locale);
             if (welcomeMsg && messages.length === 1 && messages[0].role === 'assistant') {
@@ -232,7 +232,7 @@ export default function CoachClient() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ message: userMessage })
+        body: JSON.stringify({ message: userMessage, locale })
       });
 
       const data = await response.json();
@@ -392,7 +392,7 @@ export default function CoachClient() {
               </h1>
               <p style={{ fontSize: isMobile ? '0.8rem' : '0.875rem', color: '#9ca3af', margin: 0 }}>
                 {currentPersonaName ? (
-                  predefinedPersonas.find(p => p.id === persona.theme)?.description || t('subtitle')
+                  (persona.theme ? getPersonaDisplayDescription(predefinedPersonas.find(p => p.id === persona.theme), locale) : null) || t('subtitle')
                 ) : (
                   t('subtitle')
                 )}
@@ -536,10 +536,10 @@ export default function CoachClient() {
                     cursor: 'pointer'
                   }}
                 >
-                  <option value="">{t('selectPersonality') || 'Selecione uma personalidade...'}</option>
+                  <option value="">{t('selectPersonality')}</option>
                   {predefinedPersonas.map((preset) => (
                     <option key={preset.id} value={preset.id}>
-                      {preset.icon} {preset.name}
+                      {preset.icon} {getPersonaDisplayName(preset, locale)}
                     </option>
                   ))}
                 </select>
@@ -558,11 +558,11 @@ export default function CoachClient() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
                       <span style={{ fontSize: '1.5rem' }}>{selectedPersona.icon}</span>
                       <h3 style={{ fontSize: '1rem', fontWeight: '600', color: '#fbbf24', margin: 0 }}>
-                        {selectedPersona.name}
+                        {getPersonaDisplayName(selectedPersona, locale)}
                       </h3>
                     </div>
                     <p style={{ fontSize: '0.875rem', color: '#9ca3af', lineHeight: '1.6', margin: 0 }}>
-                      {selectedPersona.description}
+                      {getPersonaDisplayDescription(selectedPersona, locale)}
                     </p>
                   </div>
                 );

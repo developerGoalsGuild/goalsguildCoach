@@ -37,6 +37,7 @@ export async function initDB() {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS total_xp INTEGER DEFAULT 0`);
 
   // Messages table
   await pool.query(`
@@ -146,6 +147,16 @@ export async function initDB() {
       xp_earned INTEGER DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(session_id, activity_date),
+      FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS streak_freezes (
+      session_id VARCHAR(255) NOT NULL,
+      used_date DATE NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (session_id, used_date),
       FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
     );
   `);
@@ -265,7 +276,7 @@ export async function initDB() {
       ('Herói', 'Complete 25 quests', 'quests', 25, '🦸'),
       ('Lenda', 'Complete 50 quests', 'quests', 50, '👑'),
       ('Primeiros Passos', 'Ganhe 100 XP', 'xp', 100, '👣'),
-      'Explorador de XP', 'Ganhe 500 XP', 'xp', 500, '💰'),
+      ('Explorador de XP', 'Ganhe 500 XP', 'xp', 500, '💰'),
       ('Caçador de XP', 'Ganhe 1000 XP', 'xp', 1000, '💎'),
       ('Mestre do XP', 'Ganhe 2500 XP', 'xp', 2500, '🏆'),
       ('Lendário', 'Ganhe 5000 XP', 'xp', 5000, '⭐'),
@@ -337,4 +348,19 @@ export async function updateUserPreferences(pool, sessionId, preferences) {
     'UPDATE user_preferences SET daily_work_hours = $1, updated_at = CURRENT_TIMESTAMP WHERE session_id = $2',
     [preferences.daily_work_hours || 6, sessionId]
   );
+}
+
+/** Ensure streak_freezes table exists (for DBs created without it). Safe to call on every request. */
+export async function ensureStreakFreezesTable(pool) {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS streak_freezes (
+        session_id VARCHAR(255) NOT NULL,
+        used_date DATE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (session_id, used_date),
+        FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+      )
+    `);
+  } catch (_) {}
 }

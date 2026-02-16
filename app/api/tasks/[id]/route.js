@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '../../../lib/db';
 import { getAuthToken, verifyJWT } from '../../../lib/auth';
 import { TABLES, COLS } from '../../../lib/db-schema';
+import { addXP, XP_PER_TASK, XP_PER_TASK_LONG_BONUS } from '../../../lib/level';
 
 export async function GET(request, context) {
   try {
@@ -106,24 +107,36 @@ export async function PATCH(request, context) {
 
     const task = result.rows[0];
 
-    // Ao completar: atualizar memória (quest_journal) para aparecer no histórico do objetivo
-    if (nextStatus === 'completed' && currentTask.status !== 'completed' && task.quest_id) {
-      try {
-        const content = JSON.stringify({
-          type: 'task_completed',
-          task_title: task.title,
-          task_id: task.id,
-          completed_at: task.completed_at,
-          ...(observation && typeof observation === 'string' && observation.trim() && { observation: observation.trim() })
-        });
-        await pool.query(
-          `INSERT INTO quest_journal (quest_id, entry_type, content, created_at)
-           VALUES ($1::text, $2, $3, NOW())`,
-          [task.quest_id, 'task_completed', content]
-        );
-      } catch (e) {
-        console.warn('[Task] quest_journal update skipped:', e.message);
+    // Ao completar: atualizar memória (quest_journal) e award XP
+    if (nextStatus === 'completed' && currentTask.status !== 'completed') {
+      if (task.quest_id) {
+        try {
+          const content = JSON.stringify({
+            type: 'task_completed',
+            task_title: task.title,
+            task_id: task.id,
+            completed_at: task.completed_at,
+            ...(observation && typeof observation === 'string' && observation.trim() && { observation: observation.trim() })
+          });
+          await pool.query(
+            `INSERT INTO quest_journal (quest_id, entry_type, content, created_at)
+             VALUES ($1::text, $2, $3, NOW())`,
+            [task.quest_id, 'task_completed', content]
+          );
+        } catch (e) {
+          console.warn('[Task] quest_journal update skipped:', e.message);
+        }
       }
+      const longBonus = (parseFloat(task.estimated_hours) || 0) >= 2 ? XP_PER_TASK_LONG_BONUS : 0;
+      const xpAmount = XP_PER_TASK + longBonus;
+      let xpEarned = xpAmount;
+      try {
+        await addXP(pool, userId, xpAmount);
+      } catch (e) {
+        console.warn('[Task] addXP skipped:', e.message);
+        xpEarned = 0;
+      }
+      return NextResponse.json({ task, xp_earned: xpEarned });
     }
 
     return NextResponse.json({ task });

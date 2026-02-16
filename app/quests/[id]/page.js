@@ -7,6 +7,7 @@ import { authFetch, logout, getUser } from '../../lib/auth-helpers';
 import Modal from '../../components/Modal';
 import TopNavigation from '../../components/TopNavigation';
 import { useTranslations } from '../../lib/i18n';
+import { useToast } from '../../hooks/useToast';
 
 export default function QuestDetailPage() {
   const t = useTranslations('quests');
@@ -31,6 +32,7 @@ export default function QuestDetailPage() {
   const [questFeeling, setQuestFeeling] = useState('');
   const [questReflection, setQuestReflection] = useState('');
   const [completingQuest, setCompletingQuest] = useState(false);
+  const { success: showSuccess, ToastComponent } = useToast();
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -124,7 +126,11 @@ export default function QuestDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'completed' }),
       });
-      if (res.ok) await loadQuestData();
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.xp_earned) showSuccess(`+${data.xp_earned} XP`);
+        await loadQuestData();
+      }
     } catch (error) {
       console.error('Failed to complete task:', error);
     } finally {
@@ -187,10 +193,11 @@ export default function QuestDetailPage() {
       });
 
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.xp_earned) showSuccess(`+${data.xp_earned} XP`);
         setShowCompleteQuestModal(false);
         setQuestFeeling('');
         setQuestReflection('');
-        alert('🎉 Quest completa! XP ganho!');
         await loadQuestData();
         setTimeout(() => {
           window.location.href = '/quests';
@@ -262,67 +269,22 @@ export default function QuestDetailPage() {
   return (
     <>
       <TopNavigation />
-      <div style={{ display: 'flex', paddingTop: '60px', minHeight: '100vh', background: '#0a0a0a', color: '#ededed' }}>
-      {/* Sidebar - oculto no mobile */}
-      <div style={{
-        display: isMobile ? 'none' : 'block',
-        width: '280px',
-        background: '#111827',
-        borderRight: '1px solid #1f2937',
-        padding: '1rem'
-      }}>
-        <Link href="/" style={{ textDecoration: 'none' }}>
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#fbbf24', marginBottom: '0.5rem' }}>
-            🦅 GoalsGuild
-          </h1>
-        </Link>
-        <Link href="/quests" style={{ textDecoration: 'none' }}>
-          <h1 style={{ fontSize: '1rem', fontWeight: '600', color: '#d1d5db', marginBottom: '0.5rem' }}>
-            ← Voltar
-          </h1>
-        </Link>
-
-        <div style={{ marginTop: '2rem' }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: '600', color: '#d1d5db', marginBottom: '0.5rem' }}>
-            📊 Progresso
-          </h2>
-
-          <div style={{ background: '#1f2937', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1rem' }}>
-            <div style={{ fontSize: '0.875rem', marginBottom: '0.25rem', color: '#d1d5db' }}>
+      <div style={{ paddingTop: '60px', minHeight: '100vh', background: '#0a0a0a', color: '#ededed', padding: isMobile ? '1rem' : '2rem', paddingBottom: isMobile ? '80px' : '2rem' }}>
+        {/* Barra no topo: voltar + progresso */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', padding: '1rem', background: '#111827', borderRadius: '0.5rem', border: '1px solid #1f2937' }}>
+          <Link href="/quests" style={{ fontSize: '0.875rem', fontWeight: '600', color: '#d1d5db', textDecoration: 'none' }}>← Voltar</Link>
+          <div style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: '0.875rem', color: '#d1d5db' }}>
               <strong>{computed?.completion_percentage || 0}%</strong> completo
             </div>
-            <div style={{ height: '8px', background: '#374151', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ flex: 1, minWidth: 120, height: '8px', background: '#374151', borderRadius: '4px', overflow: 'hidden' }}>
               <div style={{ height: '100%', background: '#22c55e', width: `${computed?.completion_percentage || 0}%` }}></div>
             </div>
-          </div>
-
-          <div style={{ fontSize: '0.875rem', color: '#9ca3af', marginBottom: '0.25rem' }}>
-            Tasks: {computed?.completed_tasks || 0}/{computed?.total_tasks || 0}
-          </div>
-          <div style={{ fontSize: '0.875rem', color: '#9ca3af', marginBottom: '0.25rem' }}>
-            Estimativa: {computed?.total_estimated_hours?.toFixed(1) || 0}h
-          </div>
-          <div style={{ fontSize: '0.875rem', color: '#fbbf24', marginBottom: '0.25rem' }}>
-            XP: +{quest.xp_offered ?? quest.xp_reward ?? 100}
+            <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+              Tasks: {computed?.completed_tasks || 0}/{computed?.total_tasks || 0} • XP: +{quest.xp_offered ?? quest.xp_reward ?? 100}
+            </span>
           </div>
         </div>
-      </div>
-
-      <div style={{ flex: 1, padding: isMobile ? '1rem' : '2rem', overflowY: 'auto', paddingBottom: isMobile ? '80px' : undefined }}>
-        {/* Progresso - no mobile mostra no topo do conteúdo */}
-        {isMobile && (
-          <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#1f2937', borderRadius: '0.5rem', border: '1px solid #374151' }}>
-            <div style={{ fontSize: '0.875rem', marginBottom: '0.5rem', color: '#d1d5db' }}>
-              <strong>{computed?.completion_percentage || 0}%</strong> completo
-            </div>
-            <div style={{ height: '8px', background: '#374151', borderRadius: '4px', overflow: 'hidden', marginBottom: '0.5rem' }}>
-              <div style={{ height: '100%', background: '#22c55e', width: `${computed?.completion_percentage || 0}%` }}></div>
-            </div>
-            <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-              Tasks: {computed?.completed_tasks || 0}/{computed?.total_tasks || 0} • XP: +{quest.xp_offered ?? quest.xp_reward ?? 100}
-            </div>
-          </div>
-        )}
         <div style={{ marginBottom: '2rem' }}>
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', gap: isMobile ? '1rem' : 0 }}>
             <div style={{ flex: 1 }}>
@@ -709,7 +671,7 @@ export default function QuestDetailPage() {
           }}
         />
       </Modal>
-    </div>
+      {ToastComponent}
     </>
   );
 }

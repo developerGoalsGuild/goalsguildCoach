@@ -174,6 +174,22 @@ export function getPredefinedPersona(id) {
 }
 
 /**
+ * Nome da personalidade no locale do usuário
+ */
+export function getPersonaDisplayName(preset, locale = 'pt-BR') {
+  if (!preset) return '';
+  return locale === 'en-US' ? (preset.nameEn || preset.name) : preset.name;
+}
+
+/**
+ * Descrição da personalidade no locale do usuário
+ */
+export function getPersonaDisplayDescription(preset, locale = 'pt-BR') {
+  if (!preset) return '';
+  return locale === 'en-US' ? (preset.descriptionEn || preset.description) : preset.description;
+}
+
+/**
  * Retorna mensagem de boas-vindas baseada no tema da personalidade
  */
 export function getWelcomeMessage(theme, locale = 'pt-BR') {

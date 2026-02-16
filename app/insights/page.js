@@ -58,53 +58,27 @@ export default function InsightsPage() {
   return (
     <>
       <TopNavigation />
-      <div style={{ display: 'flex', minHeight: '100vh', paddingTop: '60px', paddingBottom: isMobile ? '80px' : undefined, background: '#0a0a0a', color: '#ededed' }}>
-      {/* Sidebar - oculto no mobile */}
-      <div style={{ display: isMobile ? 'none' : 'block', width: '280px', background: '#111827', borderRight: '1px solid #1f2937', padding: '1rem' }}>
-        <button
-          onClick={() => router.push('/')}
-          style={{
-            width: '100%',
-            padding: '0.75rem',
-            borderRadius: '0.5rem',
-            background: '#1f2937',
-            border: '1px solid #374151',
-            color: '#d1d5db',
-            fontSize: '0.875rem',
-            border: 'none',
-            cursor: 'pointer',
-            marginBottom: '0.5rem'
-          }}
-        >
-          ← Voltar
-        </button>
-
-        <div style={{ marginTop: '2rem', padding: '1rem', background: '#1f2937', borderRadius: '0.5rem' }}>
-          <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
-            🤖 INSIGHTS
-          </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#fbbf24', marginBottom: '0.25rem' }}>
-            {insights?.insights?.length || 0}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: '#d1d5db' }}>
-            insights automáticos
-          </div>
+      <div style={{ minHeight: '100vh', paddingTop: '60px', paddingBottom: isMobile ? '80px' : undefined, background: '#0a0a0a', color: '#ededed', padding: isMobile ? '1rem' : '2rem' }}>
+        {/* Barra no topo: voltar + resumo */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', padding: '1rem', background: '#111827', borderRadius: '0.5rem', border: '1px solid #1f2937' }}>
+          <button
+            onClick={() => router.push('/')}
+            style={{ padding: '0.5rem 0.75rem', borderRadius: '0.5rem', background: '#1f2937', border: '1px solid #374151', color: '#d1d5db', fontSize: '0.875rem', cursor: 'pointer' }}
+          >
+            ← Voltar
+          </button>
+          <span style={{ fontSize: '0.875rem', color: '#d1d5db' }}>
+            🤖 <strong style={{ color: '#fbbf24' }}>{insights?.insights?.length || 0}</strong> insights automáticos
+          </span>
+          {weeklyReview && (
+            <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+              📅 {new Date(weeklyReview.period?.start).toLocaleDateString('pt-BR')} – {new Date(weeklyReview.period?.end).toLocaleDateString('pt-BR')}
+            </span>
+          )}
         </div>
 
-        {weeklyReview && (
-          <div style={{ marginTop: '1rem', padding: '1rem', background: '#1f2937', borderRadius: '0.5rem' }}>
-            <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
-              📅 WEEKLY REVIEW
-            </div>
-            <div style={{ fontSize: '0.75rem', color: '#d1d5db' }}>
-              {new Date(weeklyReview.period?.start).toLocaleDateString('pt-BR')} - {new Date(weeklyReview.period?.end).toLocaleDateString('pt-BR')}
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* Main Content */}
-      <div style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
+      <div>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fbbf24', marginBottom: '1rem' }}>
           💡 Insights Dashboard
         </h1>

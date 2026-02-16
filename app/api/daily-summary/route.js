@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '../../lib/db';
+import { addXP, XP_PER_CHECKIN, XP_PER_CHECKIN_STREAK_BONUS } from '../../lib/level';
 
 // GET - Buscar resumo do dia atual
 export async function GET(request) {
@@ -100,6 +101,16 @@ export async function POST(request) {
 
     const questId = questResult.rows.length > 0 ? questResult.rows[0].id : null;
 
+    // Check if first check-in today (only award XP once per day)
+    const existingCheckin = await pool.query(
+      `SELECT 1 FROM quest_journal qj
+       JOIN quests q ON qj.quest_id::text = q.id::text
+       WHERE q.session_id = $1 AND qj.entry_type = 'daily_checkin' AND DATE(qj.created_at) = $2
+       LIMIT 1`,
+      [sessionId, today]
+    );
+    const isFirstCheckinToday = existingCheckin.rows.length === 0;
+
     await pool.query(`
       INSERT INTO quest_journal (
         quest_id, entry_type, content, mood, created_at
@@ -112,9 +123,44 @@ export async function POST(request) {
       today
     ]);
 
+    let xpEarned = 0;
+    if (isFirstCheckinToday) {
+      let checkinStreak = 0;
+      try {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().slice(0, 10);
+        const daysResult = await pool.query(
+          `SELECT DISTINCT DATE(qj.created_at) as d FROM quest_journal qj
+           JOIN quests q ON qj.quest_id::text = q.id::text
+           WHERE q.session_id = $1 AND qj.entry_type = 'daily_checkin' AND DATE(qj.created_at) <= $2
+           ORDER BY d DESC LIMIT 31`,
+          [sessionId, yesterdayStr]
+        );
+        const dates = (daysResult.rows || []).map((r) => r.d);
+        for (let i = 0; i < dates.length; i++) {
+          const expect = new Date(yesterday);
+          expect.setDate(expect.getDate() - i);
+          if (dates[i] !== expect.toISOString().slice(0, 10)) break;
+          checkinStreak++;
+        }
+        const streakBonus = Math.max(0, checkinStreak * XP_PER_CHECKIN_STREAK_BONUS);
+        const totalXP = XP_PER_CHECKIN + streakBonus;
+        await addXP(pool, sessionId, totalXP);
+        xpEarned = totalXP;
+      } catch (e) {
+        console.warn('[Daily] addXP skipped:', e.message);
+        try {
+          await addXP(pool, sessionId, XP_PER_CHECKIN);
+          xpEarned = XP_PER_CHECKIN;
+        } catch (_) {}
+      }
+    }
+
     return NextResponse.json({ 
       success: true, 
-      message: 'Reflexao do dia salva!' 
+      message: 'Reflexao do dia salva!',
+      xp_earned: xpEarned
     });
 
   } catch (error) {

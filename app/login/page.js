@@ -3,9 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from '../lib/i18n';
 
 export default function LoginPage() {
   const router = useRouter();
+  const t = useTranslations('login');
+  const tHome = useTranslations('home');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -40,7 +43,7 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Authentication failed');
+        setError(data.error || t('authFailed'));
         setLoading(false);
         return;
       }
@@ -52,7 +55,7 @@ export default function LoginPage() {
         router.push('/');
       }
     } catch (err) {
-      setError('Network error. Please try again.');
+      setError(t('networkError'));
       setLoading(false);
     }
   };
@@ -119,11 +122,11 @@ export default function LoginPage() {
         <div style={headerStyle}>
           <Link href="/" style={{ textDecoration: 'none' }}>
             <h1 style={titleStyle}>
-              🦅 GoalsGuild Coach
+              🦅 {tHome('title')}
             </h1>
           </Link>
           <p style={{ fontSize: '0.875rem', color: '#9ca3af', margin: 0 }}>
-            Faça login para continuar
+            {t('subtitle')}
           </p>
         </div>
 
@@ -136,13 +139,13 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit}>
           <div>
             <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
-              Email
+              {t('email')}
             </label>
             <input
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="seu@email.com"
+              placeholder="email@example.com"
               required
               disabled={loading}
               style={inputStyle}
@@ -151,7 +154,7 @@ export default function LoginPage() {
 
           <div>
             <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
-              Senha
+              {t('password')}
             </label>
             <input
               type="password"
@@ -170,25 +173,25 @@ export default function LoginPage() {
             disabled={loading}
             style={buttonStyle}
           >
-            {loading ? 'Entrando...' : 'Entrar'}
+            {loading ? t('entering') : t('submit')}
           </button>
         </form>
 
         <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.875rem' }}>
           <p style={{ color: '#9ca3af', margin: 0 }}>
-            Esqueceu sua senha? <Link href="/forgot-password" style={{ color: '#fbbf24', textDecoration: 'none' }}>Recuperar</Link>
+            {t('forgotPassword')} <Link href="/forgot-password" style={{ color: '#fbbf24', textDecoration: 'none' }}>{t('recover')}</Link>
           </p>
         </div>
 
         <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '0.875rem' }}>
           <p style={{ color: '#9ca3af', margin: 0 }}>
-            Não tem conta? <Link href="/register" style={{ color: '#fbbf24', textDecoration: 'none' }}>Criar conta</Link>
+            {t('noAccount')} <Link href="/register" style={{ color: '#fbbf24', textDecoration: 'none' }}>{t('createAccount')}</Link>
           </p>
         </div>
 
         {isMobile && (
           <div style={{ marginTop: '2rem', padding: '1rem', background: '#1f2937', borderRadius: '0.5rem', fontSize: '0.75rem', color: '#9ca3af', textAlign: 'center' }}>
-            <p style={{ margin: '0 0 0.5rem 0', fontWeight: '600' }}>📱Usuário de teste:</p>
+            <p style={{ margin: '0 0 0.5rem 0', fontWeight: '600' }}>📱 {t('testUserLabel')}</p>
             <p style={{ margin: '0', fontSize: '0.625rem' }}>teste@goalsguild.com</p>
             <p style={{ margin: '0', fontSize: '0.625rem' }}>teste123</p>
           </div>

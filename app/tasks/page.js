@@ -9,6 +9,7 @@ import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
 import TopNavigation from '../components/TopNavigation';
 import { useTranslations } from '../lib/i18n';
+import { useToast } from '../hooks/useToast';
 
 export default function TasksPage() {
   const t = useTranslations('tasks');
@@ -21,6 +22,7 @@ export default function TasksPage() {
   const [modalAction, setModalAction] = useState(null);
   const [modalTask, setModalTask] = useState(null);
   const [completeObservation, setCompleteObservation] = useState('');
+  const { success: showSuccess, ToastComponent } = useToast();
 
   useEffect(() => {
     loadTasks();
@@ -59,7 +61,11 @@ export default function TasksPage() {
           ...(completeObservation.trim() && { observation: completeObservation.trim() }),
         }),
       });
-      if (res.ok) loadTasks();
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.xp_earned) showSuccess(`+${data.xp_earned} XP`);
+        loadTasks();
+      }
     } catch (err) {
       console.error('Failed to complete task:', err);
     } finally {
@@ -237,6 +243,7 @@ export default function TasksPage() {
           </>
         )}
       </Modal>
+      {ToastComponent}
     </div>
   );
 }

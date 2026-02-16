@@ -4,13 +4,21 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations, useLocale } from '../lib/i18n';
+import { authFetch } from '../lib/auth-helpers';
 
 export default function TopNavigation() {
   const tNav = useTranslations('nav');
   const tHome = useTranslations('home');
+  const tLevel = useTranslations('level');
   const { locale, setLocale } = useLocale();
+
+  const getLevelTitle = (level) => {
+    const n = Math.max(1, Math.min(100, Number(level) || 1));
+    return n <= 10 ? tLevel(`title${n}`) : `${tLevel('levelPrefix')} ${n}`;
+  };
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [levelData, setLevelData] = useState(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -20,6 +28,13 @@ export default function TopNavigation() {
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    authFetch('/api/level')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => data && setLevelData(data))
+      .catch(() => {});
   }, []);
 
   const navLinks = [
@@ -51,6 +66,16 @@ export default function TopNavigation() {
           </nav>
 
           <div className="top-nav__right">
+            {levelData && (
+              <Link
+                href="/analytics"
+                className="btn btn-dark"
+                title={`${levelData.current_xp ?? 0} / ${levelData.xp_in_current_level_cap ?? 100} XP · ${getLevelTitle(levelData.level ?? 1)}`}
+                style={{ fontSize: '0.85rem', padding: '0.4rem 0.6rem' }}
+              >
+                ⚡ Lv.{levelData.level ?? 1}
+              </Link>
+            )}
             <Link href="/daily" className="btn btn-primary">
               ✅ {tNav('daily')}
             </Link>
@@ -82,6 +107,11 @@ export default function TopNavigation() {
         {mobileMenuOpen && (
           <div className="mobile-menu glass-card">
             <div className="mobile-menu__links">
+              {levelData && (
+                <Link href="/analytics" onClick={() => setMobileMenuOpen(false)} style={{ fontSize: '0.9rem', color: 'var(--text-soft)' }}>
+                  ⚡ {tLevel('levelPrefix')} {levelData.level ?? 1} – {getLevelTitle(levelData.level ?? 1)}
+                </Link>
+              )}
               {navLinks.map((link) => (
                 <Link
                   key={link.href}

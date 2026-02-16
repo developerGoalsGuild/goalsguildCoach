@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '../../../lib/db';
 import { getAuthToken, verifyJWT } from '../../../lib/auth';
 import { TABLES, COLS } from '../../../lib/db-schema';
+import { addXP } from '../../../lib/level';
 
 // PATCH milestone (title, description, order_index, or status/reflection for completion)
 export async function PATCH(request, context) {
@@ -118,6 +119,23 @@ export async function PATCH(request, context) {
               `UPDATE quests SET status = 'completed', completed_at = NOW() WHERE id::text = $1::text AND ${COLS.questsUser} = $2::text`,
               [milestone.quest_id, userId]
             );
+
+            // Award XP for auto-completed quest
+            try {
+              const questRow = await pool.query(
+                `SELECT estimated_xp, xp_reward, current_xp, difficulty FROM quests WHERE id::text = $1::text AND ${COLS.questsUser} = $2::text`,
+                [milestone.quest_id, userId]
+              );
+              if (questRow.rows.length > 0) {
+                const q = questRow.rows[0];
+                const xpFromRow = Number(q.estimated_xp ?? q.xp_reward ?? q.current_xp ?? 0) || 0;
+                const XP_BY_DIFFICULTY = { easy: 50, medium: 100, hard: 200, epic: 400 };
+                const questXP = xpFromRow > 0 ? xpFromRow : (XP_BY_DIFFICULTY[q.difficulty] ?? 100);
+                await addXP(pool, userId, questXP);
+              }
+            } catch (e) {
+              console.warn('[Milestone] addXP skipped:', e.message);
+            }
 
             // Adicionar entrada no journal
             await pool.query(

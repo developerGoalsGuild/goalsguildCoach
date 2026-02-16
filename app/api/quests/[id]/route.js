@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '../../../lib/db';
 import { getAuthToken, verifyJWT } from '../../../lib/auth';
 import { TABLES, COLS } from '../../../lib/db-schema';
+import { addXP } from '../../../lib/level';
 
 // GET quest details
 export async function GET(request, context) {
@@ -188,6 +189,26 @@ export async function PATCH(request, context) {
       values
     );
 
+    let xpEarned = 0;
+    if (isCompleting) {
+      try {
+        const questRow = await pool.query(
+          `SELECT estimated_xp, xp_reward, current_xp, difficulty FROM quests WHERE id::text = $1::text AND ${COLS.questsUser} = $2::text`,
+          [questId, userId]
+        );
+        if (questRow.rows.length > 0) {
+          const q = questRow.rows[0];
+          const xpFromRow = Number(q.estimated_xp ?? q.xp_reward ?? q.current_xp ?? 0) || 0;
+          const XP_BY_DIFFICULTY = { easy: 50, medium: 100, hard: 200, epic: 400 };
+          const questXP = xpFromRow > 0 ? xpFromRow : (XP_BY_DIFFICULTY[q.difficulty] ?? 100);
+          await addXP(pool, userId, questXP);
+          xpEarned = questXP;
+        }
+      } catch (e) {
+        console.warn('[Quest] addXP skipped:', e.message);
+      }
+    }
+
     // Salvar na memória do objetivo se houver parent_goal_id
     if ((isCompleting || isFailing) && existing.rows[0].parent_goal_id) {
       try {
@@ -242,7 +263,7 @@ ${reflection ? `📝 **Reflexão:**\n${reflection}\n` : ''}
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, ...(xpEarned > 0 && { xp_earned: xpEarned }) });
 
   } catch (error) {
     console.error('Quest update error:', error);

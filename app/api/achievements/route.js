@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '../../lib/db';
+import { ensureLevelSchema, getLevelFromTotalXP } from '../../lib/level';
 
 // GET - Buscar achievements do usuário
 export async function GET(request) {
@@ -19,7 +20,8 @@ export async function GET(request) {
 
   try {
     const pool = getPool();
-    const sessionId = decoded.sessionId;
+    const sessionId = decoded.sessionId || decoded.userId;
+    await ensureLevelSchema(pool);
 
     // Buscar todos achievements disponíveis
     const allAchievements = await pool.query(`
@@ -43,17 +45,20 @@ export async function GET(request) {
       ORDER BY ua.unlocked_at DESC
     `, [sessionId]);
 
-    // Buscar progresso atual do usuário
+    // Buscar progresso: quests e objetivos da tabela quests; XP de sessions.total_xp
     const statsResult = await pool.query(`
       SELECT 
         COUNT(CASE WHEN status = 'completed' THEN id END) as total_quests,
-        COALESCE(SUM(current_xp), 0) as total_xp,
         COUNT(DISTINCT parent_goal_id) as total_objectives
       FROM quests
       WHERE session_id = $1
     `, [sessionId]);
-
-    const stats = statsResult.rows[0] || { total_quests: 0, total_xp: 0, total_objectives: 0 };
+    const totalXpResult = await pool.query(
+      `SELECT COALESCE(total_xp, 0)::int as total_xp FROM sessions WHERE session_id = $1`,
+      [sessionId]
+    );
+    const total_xp = Number(totalXpResult.rows[0]?.total_xp ?? 0);
+    const stats = { ...(statsResult.rows[0] || { total_quests: 0, total_objectives: 0 }), total_xp };
 
     // Calcular streak
     const streakResult = await pool.query(`
@@ -70,6 +75,7 @@ export async function GET(request) {
     `, [sessionId]);
 
     const longestStreak = streakResult.rows[0]?.streak || 0;
+    const currentLevel = getLevelFromTotalXP(total_xp).level;
 
     // Calcular progresso para cada achievement
     const achievementsWithProgress = allAchievements.rows.map(achievement => {
@@ -98,6 +104,9 @@ export async function GET(request) {
         case 'objectives':
           progress = Math.min(stats.total_objectives, achievement.requirement_value);
           break;
+        case 'level':
+          progress = Math.min(currentLevel, achievement.requirement_value);
+          break;
       }
 
       return {
@@ -114,16 +123,20 @@ export async function GET(request) {
       quests: achievementsWithProgress.filter(a => a.category === 'quests'),
       xp: achievementsWithProgress.filter(a => a.category === 'xp'),
       streak: achievementsWithProgress.filter(a => a.category === 'streak'),
-      objectives: achievementsWithProgress.filter(a => a.category === 'objectives')
+      objectives: achievementsWithProgress.filter(a => a.category === 'objectives'),
+      level: achievementsWithProgress.filter(a => a.category === 'level')
     };
 
+    const unlockedCount = achievementsWithProgress.filter(a => a.unlocked).length;
     return NextResponse.json({
       achievements: achievementsWithProgress,
       grouped,
       stats: {
-        unlocked: unlockedResult.rows.length,
+        unlocked: unlockedCount,
         total: allAchievements.rows.length,
-        percentage: Math.round((unlockedResult.rows.length / allAchievements.rows.length) * 100)
+        percentage: allAchievements.rows.length
+          ? Math.round((unlockedCount / allAchievements.rows.length) * 100)
+          : 0
       }
     });
 
@@ -151,20 +164,24 @@ export async function POST(request) {
 
   try {
     const pool = getPool();
-    const sessionId = decoded.sessionId;
+    const sessionId = decoded.sessionId || decoded.userId;
+    await ensureLevelSchema(pool);
     const newlyUnlocked = [];
 
-    // Buscar stats atuais do usuário
+    // Buscar stats atuais do usuário (quests/objetivos de quests; XP de sessions)
     const statsResult = await pool.query(`
       SELECT 
         COUNT(CASE WHEN status = 'completed' THEN id END) as total_quests,
-        COALESCE(SUM(current_xp), 0) as total_xp,
         COUNT(DISTINCT parent_goal_id) as total_objectives
       FROM quests
       WHERE session_id = $1
     `, [sessionId]);
-
-    const stats = statsResult.rows[0] || { total_quests: 0, total_xp: 0, total_objectives: 0 };
+    const xpResult = await pool.query(
+      `SELECT COALESCE(total_xp, 0)::int as total_xp FROM sessions WHERE session_id = $1`,
+      [sessionId]
+    );
+    const total_xp = Number(xpResult.rows[0]?.total_xp ?? 0);
+    const stats = { ...(statsResult.rows[0] || { total_quests: 0, total_objectives: 0 }), total_xp };
 
     // Calcular streak
     const streakResult = await pool.query(`
@@ -181,6 +198,7 @@ export async function POST(request) {
     `, [sessionId]);
 
     const longestStreak = streakResult.rows[0]?.streak || 0;
+    const currentLevel = getLevelFromTotalXP(total_xp).level;
 
     // Buscar todos achievements
     const achievementsResult = await pool.query(`
@@ -206,6 +224,9 @@ export async function POST(request) {
         case 'objectives':
           meetsRequirement = stats.total_objectives >= achievement.requirement_value;
           break;
+        case 'level':
+          meetsRequirement = currentLevel >= achievement.requirement_value;
+          break;
       }
 
       if (meetsRequirement) {
@@ -224,7 +245,9 @@ export async function POST(request) {
 
           newlyUnlocked.push({
             id: achievement.id,
-            name: achievement.name
+            name: achievement.name,
+            category: achievement.category,
+            requirement_value: achievement.requirement_value
           });
         }
       }

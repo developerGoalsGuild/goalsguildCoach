@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TopNavigation from '../components/TopNavigation';
 import { useTranslations } from '../lib/i18n';
+import { authFetch } from '../lib/auth-helpers';
 
 export default function DailyCheckInPage() {
   const router = useRouter();
   const t = useTranslations('daily');
+  const tc = useTranslations('common');
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasCheckedIn, setHasCheckedIn] = useState(false);
@@ -47,26 +49,27 @@ export default function DailyCheckInPage() {
 
   const submitReflection = async () => {
     if (!reflection.mood) {
-      alert('Por favor, selecione como está seu humor hoje.');
+      alert(t('moodRequired'));
       return;
     }
 
     try {
-      const response = await fetch('/api/daily-summary', {
+      const response = await authFetch('/api/daily-summary', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reflection),
       });
 
       if (response.ok) {
-        alert('Reflexão salva! Boa noite! 🌙');
+        const data = await response.json().catch(() => ({}));
+        const xpMsg = data.xp_earned ? ` +${data.xp_earned} XP!` : '';
+        alert(`${t('savedSuccess')}${xpMsg}`);
         setHasCheckedIn(true);
       } else {
-        alert('Erro ao salvar reflexão.');
+        alert(t('saveError'));
       }
     } catch (error) {
       console.error('Error submitting reflection:', error);
-      alert('Erro ao salvar reflexão.');
+      alert(t('saveError'));
     }
   };
 
@@ -76,7 +79,7 @@ export default function DailyCheckInPage() {
         <TopNavigation />
         <main className="page-container" style={{ display: 'grid', placeItems: 'center', minHeight: '72vh' }}>
           <div className="glass-card" style={{ padding: '1rem 1.2rem', color: 'var(--text-soft)' }}>
-            Carregando...
+            {tc('loading')}
           </div>
         </main>
       </div>
@@ -121,10 +124,10 @@ export default function DailyCheckInPage() {
             <p style={{ color: 'var(--text-soft)', marginBottom: '0.5rem' }}>{t('summaryOfDay')}</p>
             {summary ? (
               <>
-                <p>✅ Completas: {summary.completed_tasks || 0}</p>
-                <p>⏳ Pendentes: {summary.pending_tasks || 0}</p>
-                <p>⭐ XP: {summary.total_xp || 0}</p>
-                <p>📊 Horas: {Number(summary.hours_worked || 0).toFixed(1)}h</p>
+                <p>✅ {t('completedLabel')}: {summary.completed_tasks || 0}</p>
+                <p>⏳ {t('pendingLabel')}: {summary.pending_tasks || 0}</p>
+                <p>⭐ {t('xpLabel')}: {summary.total_xp || 0}</p>
+                <p>📊 {t('hoursLabel')}: {Number(summary.hours_worked || 0).toFixed(1)}h</p>
               </>
             ) : (
               <p style={{ color: 'var(--text-soft)' }}>{t('noSummary')}</p>
@@ -134,18 +137,21 @@ export default function DailyCheckInPage() {
           <div className="glass-card" style={{ padding: '1rem' }}>
             <p style={{ color: 'var(--text-soft)', marginBottom: '0.5rem' }}>{t('moodToday')}</p>
             <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
-              {['😊 Ótimo', '🙂 Bom', '😐 Ok', '😔 Cansado', '😢 Ruim'].map((mood) => {
-                const value = mood.split(' ')[1];
-                return (
-                  <button
-                    key={mood}
-                    onClick={() => setReflection({ ...reflection, mood: value })}
-                    className={`btn ${reflection.mood === value ? 'btn-primary' : 'btn-dark'}`}
-                  >
-                    {mood}
-                  </button>
-                );
-              })}
+              {[
+                { value: 'great', emoji: '😊', key: 'moodGreat' },
+                { value: 'good', emoji: '🙂', key: 'moodGood' },
+                { value: 'ok', emoji: '😐', key: 'moodOk' },
+                { value: 'tired', emoji: '😔', key: 'moodTired' },
+                { value: 'bad', emoji: '😢', key: 'moodBad' },
+              ].map(({ value, emoji, key }) => (
+                <button
+                  key={value}
+                  onClick={() => setReflection({ ...reflection, mood: value })}
+                  className={`btn ${reflection.mood === value ? 'btn-primary' : 'btn-dark'}`}
+                >
+                  {emoji} {t(key)}
+                </button>
+              ))}
             </div>
           </div>
         </section>
@@ -153,28 +159,28 @@ export default function DailyCheckInPage() {
         <section className="glass-card" style={{ padding: '1rem' }}>
           <h2 style={{ marginBottom: '0.75rem' }}>{t('reflection')}</h2>
           <Question
-            label="O que você tem a agradecer hoje?"
+            label={t('gratitudeQuestion')}
             value={reflection.gratitude}
             onChange={(value) => setReflection({ ...reflection, gratitude: value })}
-            placeholder="Pessoas, momentos, conquistas..."
+            placeholder={t('gratitudePlaceholder')}
           />
           <Question
-            label="Quais foram suas principais vitórias?"
+            label={t('highlightsQuestion')}
             value={reflection.highlights}
             onChange={(value) => setReflection({ ...reflection, highlights: value })}
-            placeholder="Tarefas completadas, progressos..."
+            placeholder={t('highlightsPlaceholder')}
           />
           <Question
-            label="O que foi desafiador?"
+            label={t('challengesQuestion')}
             value={reflection.challenges}
             onChange={(value) => setReflection({ ...reflection, challenges: value })}
-            placeholder="Obstáculos, dificuldades..."
+            placeholder={t('challengesPlaceholder')}
           />
           <Question
-            label="O que você quer conquistar amanhã?"
+            label={t('tomorrowQuestion')}
             value={reflection.tomorrow_goals}
             onChange={(value) => setReflection({ ...reflection, tomorrow_goals: value })}
-            placeholder="Prioridades, metas..."
+            placeholder={t('tomorrowPlaceholder')}
           />
           <button onClick={submitReflection} disabled={!reflection.mood} className="btn btn-primary" style={{ width: '100%', opacity: reflection.mood ? 1 : 0.6 }}>
             {t('saveReflection')}

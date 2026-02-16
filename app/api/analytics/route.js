@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '../../lib/db';
 import { getUserFromToken } from '../../lib/auth';
 import { TABLES, COLS } from '../../lib/db-schema';
+import { getLevelFromTotalXP, ensureLevelSchema } from '../../lib/level';
 
 // GET - Analytics (quests, milestones, tasks). No cache so data is always fresh.
 export async function GET(request) {
@@ -48,7 +49,9 @@ export async function GET(request) {
       }
     } catch (_) {}
 
-    // 1. General stats (all time) and total XP
+    await ensureLevelSchema(pool);
+
+    // 1. General stats (all time) and total XP from sessions (single source of truth for level)
     const generalStats = await pool.query(
       `SELECT 
         COUNT(CASE WHEN status = 'completed' THEN id END) as total_quests_completed,
@@ -58,7 +61,11 @@ export async function GET(request) {
        FROM quests WHERE ${COLS.questsUser} = $1`,
       [sessionId]
     );
-    const totalXP = Number(generalStats.rows[0]?.total_xp_earned || 0);
+    const sessionsXP = await pool.query(
+      `SELECT COALESCE(total_xp, 0)::int as total_xp FROM sessions WHERE session_id = $1`,
+      [sessionId]
+    );
+    const totalXP = Number(sessionsXP.rows[0]?.total_xp ?? generalStats.rows[0]?.total_xp_earned ?? 0);
 
     // 2. Week stats: quests completed, milestones completed (from quest_milestones), xp, active days
     const weekQuests = await pool.query(
@@ -232,10 +239,8 @@ export async function GET(request) {
       [sessionId, monthAgo]
     );
 
-    // 7. Level from total XP
-    const level = Math.max(1, Math.floor(totalXP / 1000) + 1);
-    const currentLevelXP = totalXP % 1000;
-    const xpToNextLevel = Math.max(100, 1000 - currentLevelXP);
+    // 7. Level from sessions.total_xp (progression-based: 5% harder per level)
+    const levelInfo = getLevelFromTotalXP(totalXP);
 
     // 8. Streak (from streaks table or derive from activity)
     let streakLongest = 0;
@@ -254,7 +259,7 @@ export async function GET(request) {
 
     return NextResponse.json(
       {
-        level: { level, current_xp: currentLevelXP, xp_to_next_level: xpToNextLevel },
+        level: levelInfo,
         general: generalStats.rows[0] || {},
         week: weekStats,
         month: monthStats,

@@ -5,10 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authFetch } from '../../lib/auth-helpers';
 import TopNavigation from '../../components/TopNavigation';
+import { useTranslations } from '../../lib/i18n';
 
 export default function NewReminderPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useTranslations('reminders');
+  const tc = useTranslations('common');
   const preselectedObjectiveId = searchParams.get('objectiveId');
 
   const [loading, setLoading] = useState(false);
@@ -57,7 +60,7 @@ export default function NewReminderPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.objective_id) {
-      alert('Selecione um objetivo');
+      alert(t('selectObjectiveFirst'));
       return;
     }
     setLoading(true);
@@ -78,11 +81,11 @@ export default function NewReminderPage() {
         router.push(`/objectives?reminder=${data.reminderId}`);
       } else {
         const err = await res.json();
-        alert(err.error || 'Erro ao criar lembrete');
+        alert(err.error || t('createError'));
       }
     } catch (error) {
       console.error('Failed to create reminder:', error);
-      alert('Erro ao criar lembrete');
+      alert(t('createError'));
     } finally {
       setLoading(false);
     }
@@ -112,10 +115,10 @@ export default function NewReminderPage() {
               color: '#fbbf24',
               marginBottom: '0.5rem'
             }}>
-              🔔 Criar Lembrete
+              🔔 {t('title')}
             </h1>
             <p style={{ fontSize: isMobile ? '0.875rem' : '1rem', color: '#9ca3af' }}>
-              Configure um lembrete para acompanhar o progresso do seu objetivo.
+              {t('subtitle')}
             </p>
           </div>
 
@@ -133,7 +136,7 @@ export default function NewReminderPage() {
                 color: '#d1d5db',
                 marginBottom: '0.5rem'
               }}>
-                Objetivo *
+                {t('objectiveLabel')}
               </label>
               <select
                 value={formData.objective_id}
@@ -154,25 +157,25 @@ export default function NewReminderPage() {
                   appearance: 'none'
                 }}
               >
-                <option value="">Selecione um objetivo</option>
+                <option value="">{t('selectObjective')}</option>
                 {loadingObjectives ? (
-                  <option disabled>Carregando objetivos...</option>
+                  <option disabled>{t('loadingObjectives')}</option>
                 ) : (
                   objectives.map((obj) => (
                     <option key={obj.id} value={obj.id}>
-                      {obj.title || obj.statement || `Objetivo ${obj.id?.slice(0, 8)}`}
+                      {obj.title || obj.statement || `${t('objectiveFallback')} ${obj.id?.slice(0, 8)}`}
                     </option>
                   ))
                 )}
               </select>
               <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>
-                O lembrete será vinculado a este objetivo
+                {t('linkedToObjective')}
               </p>
             </div>
 
             <div style={{ marginBottom: isMobile ? '1.25rem' : '1.5rem' }}>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
-                Frequência *
+                {t('frequencyLabel')}
               </label>
               <select
                 value={formData.frequency}
@@ -192,18 +195,18 @@ export default function NewReminderPage() {
                   appearance: 'none'
                 }}
               >
-                <option value="daily">Diário</option>
-                <option value="weekly">Semanal</option>
-                <option value="biweekly">Quinzenal</option>
+                <option value="daily">{t('frequencyDaily')}</option>
+                <option value="weekly">{t('frequencyWeekly')}</option>
+                <option value="biweekly">{t('frequencyBiweekly')}</option>
               </select>
               <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>
-                Com que frequência deseja ser lembrado de fazer o check-in?
+                {t('frequencyHint')}
               </p>
             </div>
 
             <div style={{ marginBottom: isMobile ? '1.25rem' : '1.5rem' }}>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
-                Tipo de lembrete
+                {t('typeLabel')}
               </label>
               <select
                 value={formData.type}
@@ -223,9 +226,9 @@ export default function NewReminderPage() {
                   appearance: 'none'
                 }}
               >
-                <option value="check-in">Check-in de progresso</option>
-                <option value="review">Revisão</option>
-                <option value="reflection">Reflexão</option>
+                <option value="check-in">{t('typeCheckin')}</option>
+                <option value="review">{t('typeReview')}</option>
+                <option value="reflection">{t('typeReflection')}</option>
               </select>
             </div>
 
@@ -250,7 +253,7 @@ export default function NewReminderPage() {
                   minHeight: buttonMinHeight
                 }}
               >
-                Cancelar
+                {tc('cancel')}
               </button>
               <button
                 type="submit"
@@ -268,7 +271,7 @@ export default function NewReminderPage() {
                   minHeight: buttonMinHeight
                 }}
               >
-                {loading ? 'Criando...' : 'Criar Lembrete'}
+                {loading ? t('creating') : t('createButton')}
               </button>
             </div>
 
@@ -279,13 +282,13 @@ export default function NewReminderPage() {
               borderRadius: '0.5rem'
             }}>
               <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#d1d5db', marginBottom: '0.5rem' }}>
-                💡 Sobre os lembretes
+                💡 {t('aboutTitle')}
               </h3>
               <ul style={{ fontSize: isMobile ? '0.8125rem' : '0.75rem', color: '#9ca3af', lineHeight: '1.6', paddingLeft: '1rem' }}>
-                <li style={{ marginBottom: '0.25rem' }}>Diário: lembrete todos os dias às 9h</li>
-                <li style={{ marginBottom: '0.25rem' }}>Semanal: lembrete a cada 7 dias</li>
-                <li style={{ marginBottom: '0.25rem' }}>Quinzenal: lembrete a cada 14 dias</li>
-                <li>Use para manter o foco nos seus objetivos</li>
+                <li style={{ marginBottom: '0.25rem' }}>{t('aboutDaily')}</li>
+                <li style={{ marginBottom: '0.25rem' }}>{t('aboutWeekly')}</li>
+                <li style={{ marginBottom: '0.25rem' }}>{t('aboutBiweekly')}</li>
+                <li>{t('aboutFocus')}</li>
               </ul>
             </div>
           </form>
@@ -302,7 +305,7 @@ export default function NewReminderPage() {
               minHeight: isMobile ? '44px' : undefined
             }}
           >
-            ← Voltar para Objetivos
+            ← {t('backToObjectives')}
           </Link>
         </div>
       </div>

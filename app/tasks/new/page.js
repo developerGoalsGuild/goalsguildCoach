@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { authFetch } from '../../lib/auth-helpers';
 import TopNavigation from '../../components/TopNavigation';
+import { useTranslations } from '../../lib/i18n';
 
 export default function NewTaskPage() {
   const router = useRouter();
+  const t = useTranslations('tasks');
+  const tc = useTranslations('common');
   const [loading, setLoading] = useState(false);
   const [quests, setQuests] = useState([]);
   const [loadingQuests, setLoadingQuests] = useState(true);
@@ -57,11 +60,11 @@ export default function NewTaskPage() {
         router.push('/tasks');
       } else {
         const err = await res.json();
-        alert(err.error || 'Erro ao criar task');
+        alert(err.error || t('createError'));
       }
     } catch (error) {
       console.error('Failed to create task:', error);
-      alert('Erro ao criar task');
+      alert(t('createError'));
     } finally {
       setLoading(false);
     }
@@ -74,39 +77,39 @@ export default function NewTaskPage() {
         <div style={{ maxWidth: '600px', margin: '0 auto', padding: '2rem 1rem' }}>
           <div style={{ marginBottom: '2rem' }}>
             <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fbbf24', marginBottom: '0.5rem' }}>
-              ➕ Criar Nova Task
+              ➕ {t('newPageTitle')}
             </h1>
             <p style={{ fontSize: '1rem', color: '#9ca3af' }}>
-              Adicione uma tarefa para executar. Você pode vinculá-la a uma quest existente.
+              {t('newPageSubtitle')}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} style={{ background: '#1f2937', borderRadius: '0.75rem', padding: '2rem', border: '1px solid #374151' }}>
             <div style={{ marginBottom: '1.5rem' }}>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
-                Título da Task *
+                {t('taskTitleLabel')}
               </label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Ex: Revisar documentação do projeto"
+                placeholder={t('taskTitlePlaceholder')}
                 required
                 style={{ width: '100%', background: '#111827', border: '1px solid #374151', borderRadius: '0.5rem', padding: '0.75rem 1rem', color: '#ededed', fontSize: '0.875rem' }}
               />
               <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>
-                Seja específico. "Revisar docs" é melhor que "Trabalhar"
+                {t('titleHint')}
               </p>
             </div>
 
             <div style={{ marginBottom: '1.5rem' }}>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
-                Descrição (opcional)
+                {t('taskDescriptionLabel')}
               </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Detalhes adicionais sobre a task..."
+                placeholder={t('taskDescriptionPlaceholder')}
                 rows="3"
                 style={{ width: '100%', background: '#111827', border: '1px solid #374151', borderRadius: '0.5rem', padding: '0.75rem 1rem', color: '#ededed', fontSize: '0.875rem', resize: 'vertical' }}
               />
@@ -114,16 +117,16 @@ export default function NewTaskPage() {
 
             <div style={{ marginBottom: '1.5rem' }}>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
-                Quest (opcional)
+                {t('questLabel')}
               </label>
               <select
                 value={formData.quest_id}
                 onChange={(e) => setFormData({ ...formData, quest_id: e.target.value })}
                 style={{ width: '100%', background: '#111827', border: '1px solid #374151', borderRadius: '0.5rem', padding: '0.75rem 1rem', color: '#ededed', fontSize: '0.875rem' }}
               >
-                <option value="">Nenhuma quest</option>
+                <option value="">{t('noQuest')}</option>
                 {loadingQuests ? (
-                  <option disabled>Carregando quests...</option>
+                  <option disabled>{t('loadingQuests')}</option>
                 ) : (
                   quests.map((q) => (
                     <option key={q.id} value={q.id}>
@@ -133,13 +136,13 @@ export default function NewTaskPage() {
                 )}
               </select>
               <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>
-                Vincule a uma quest para organizar suas tarefas
+                {t('questHint')}
               </p>
             </div>
 
             <div style={{ marginBottom: '1.5rem' }}>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
-                Horas estimadas (opcional)
+                {t('estimatedHoursLabel')}
               </label>
               <input
                 type="number"
@@ -147,11 +150,11 @@ export default function NewTaskPage() {
                 step="0.5"
                 value={formData.estimated_hours}
                 onChange={(e) => setFormData({ ...formData, estimated_hours: e.target.value })}
-                placeholder="Ex: 2"
+                placeholder={t('estimatedHoursPlaceholder')}
                 style={{ width: '100%', background: '#111827', border: '1px solid #374151', borderRadius: '0.5rem', padding: '0.75rem 1rem', color: '#ededed', fontSize: '0.875rem' }}
               />
               <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>
-                Quanto tempo você estima para esta task?
+                {t('estimatedHoursHint')}
               </p>
             </div>
 
@@ -171,7 +174,7 @@ export default function NewTaskPage() {
                   fontSize: '0.875rem'
                 }}
               >
-                Cancelar
+                {tc('cancel')}
               </button>
               <button
                 type="submit"
@@ -188,25 +191,25 @@ export default function NewTaskPage() {
                   fontSize: '0.875rem'
                 }}
               >
-                {loading ? '...' : 'Criar Task'}
+                {loading ? t('creating') : t('createTask')}
               </button>
             </div>
 
             <div style={{ marginTop: '1.5rem', padding: '1rem', background: '#111827', borderRadius: '0.5rem' }}>
               <h3 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#d1d5db', marginBottom: '0.5rem' }}>
-                💡 Dicas para criar uma task
+                💡 {t('tipsTitle')}
               </h3>
               <ul style={{ fontSize: '0.75rem', color: '#9ca3af', lineHeight: '1.6', paddingLeft: '1rem' }}>
-                <li style={{ marginBottom: '0.25rem' }}>Seja específico sobre o que fazer</li>
-                <li style={{ marginBottom: '0.25rem' }}>Vincule a uma quest para acompanhar progresso</li>
-                <li style={{ marginBottom: '0.25rem' }}>Estime horas para planejar seu dia</li>
-                <li>O Coach AI pode gerar tasks automaticamente a partir de objetivos</li>
+                <li style={{ marginBottom: '0.25rem' }}>{t('newTip1')}</li>
+                <li style={{ marginBottom: '0.25rem' }}>{t('newTip2')}</li>
+                <li style={{ marginBottom: '0.25rem' }}>{t('newTip3')}</li>
+                <li>{t('newTip4')}</li>
               </ul>
             </div>
           </form>
 
           <Link href="/tasks" style={{ display: 'inline-block', marginTop: '1rem', color: '#9ca3af', fontSize: '0.875rem', textDecoration: 'none' }}>
-            ← Voltar para Tasks
+            ← {t('backToTasks')}
           </Link>
         </div>
       </div>

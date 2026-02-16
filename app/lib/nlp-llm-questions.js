@@ -7,9 +7,14 @@ import OpenAI from 'openai';
 import { getThemePrompt } from './personas';
 
 /**
- * Builds NLP questioning prompt with persona
+ * Builds NLP questioning prompt with persona and locale (language of responses)
  */
-function buildNLPQuestioningPrompt(persona = { tone: 'neutral', specialization: 'general', archetype: 'mentor', theme: null }) {
+function buildNLPQuestioningPrompt(persona = { tone: 'neutral', specialization: 'general', archetype: 'mentor', theme: null }, locale = 'pt-BR') {
+  const isEnglish = locale === 'en-US';
+  const languageRule = isEnglish
+    ? '**CRITICAL — LANGUAGE:** You MUST respond ONLY in English. Every message to the user must be written entirely in English. Do not use Portuguese. Use the same structure (e.g. **Question:**, **NLP Objective Complete!**) but in English.'
+    : '**CRÍTICO — IDIOMA:** Você DEVE responder SOMENTE em português (Brasil). Cada mensagem ao usuário deve ser escrita inteiramente em português.';
+
   const toneInstructions = {
     aggressive: 'Seja direto e desafiador. Pressione o usuário. Identifique desculpas.',
     gentle: 'Seja encorajador e solidário. Foque no progresso, não na perfeição.',
@@ -35,7 +40,11 @@ function buildNLPQuestioningPrompt(persona = { tone: 'neutral', specialization: 
   // Se há um tema predefinido, usar o prompt temático
   const themePrompt = persona.theme ? getThemePrompt(persona.theme) : '';
 
-  return `Você é o **GoalsGuild Coach**, um assistente especializado em ajudar usuários a definir objetivos NLP (Programação Neurolinguística) completos e bem-formados.
+  return `${languageRule}
+
+---
+
+Você é o **GoalsGuild Coach**, um assistente especializado em ajudar usuários a definir objetivos NLP (Programação Neurolinguística) completos e bem-formados.
 
 ${themePrompt ? `**Seu Personagem:**\n${themePrompt}\n\n` : ''}**Sua Personalidade:**
 **Tom:** ${toneInstructions[persona.tone] || toneInstructions.neutral}
@@ -175,9 +184,9 @@ let conversationHistory = [];
 /**
  * Analisa mensagem e faz pergunta NLP via LLM
  */
-export async function askNLPQuestionViaLLM(userMessage, history = [], persona = { tone: 'neutral', specialization: 'general', archetype: 'mentor' }) {
+export async function askNLPQuestionViaLLM(userMessage, history = [], persona = { tone: 'neutral', specialization: 'general', archetype: 'mentor' }, locale = 'pt-BR') {
   // Verificar se tem OpenAI API key
-  const hasOpenAI = !!process.env.OPENAI_API_KEY && 
+  const hasOpenAI = !!process.env.OPENAI_API_KEY &&
                     process.env.OPENAI_API_KEY !== 'your-openai-api-key' &&
                     process.env.OPENAI_API_KEY.length > 20;
 
@@ -195,7 +204,7 @@ export async function askNLPQuestionViaLLM(userMessage, history = [], persona = 
     const messages = [
       {
         role: 'system',
-        content: buildNLPQuestioningPrompt(persona)
+        content: buildNLPQuestioningPrompt(persona, locale)
       },
       ...history.map(msg => ({
         role: msg.role,
@@ -243,9 +252,12 @@ export function extractNLPFromLLMResponse(llmResponse) {
     return null;
   }
 
-  // Verificar se é um objetivo completo
+  // Verificar se é um objetivo completo (PT ou EN)
   const isComplete = llmResponse.includes('🎯 Objetivo NLP Completo!') ||
-                   llmResponse.includes('Critérios NLP (8/8)');
+                   llmResponse.includes('Critérios NLP (8/8)') ||
+                   llmResponse.includes('NLP Objective Complete!') ||
+                   llmResponse.includes('NLP Criteria (8/8)') ||
+                   /objective complete|objetivo completo/i.test(llmResponse);
 
   if (isComplete) {
     return {
@@ -296,6 +308,22 @@ function parseTargetDate(dateStr) {
     return d.toISOString().split('T')[0];
   }
 
+  // "in X weeks", "X weeks"
+  const weeksEnMatch = s.match(/(?:in\s+)?(\d+)\s+week[s]?/);
+  if (weeksEnMatch) {
+    const d = new Date();
+    d.setDate(d.getDate() + parseInt(weeksEnMatch[1], 10) * 7);
+    return d.toISOString().split('T')[0];
+  }
+
+  // "in X months", "X months"
+  const monthsEnMatch = s.match(/(?:in\s+)?(\d+)\s+month[s]?/);
+  if (monthsEnMatch) {
+    const d = new Date();
+    d.setMonth(d.getMonth() + parseInt(monthsEnMatch[1], 10));
+    return d.toISOString().split('T')[0];
+  }
+
   // Formato não reconhecido - retornar null para evitar erro no banco
   return null;
 }
@@ -308,39 +336,42 @@ function parseNLPObjective(response) {
     is_nlp_complete: true
   };
 
-  // Extrair critérios usando regex
+  // Extrair critérios usando regex (PT e EN)
   const criteria = [
-    { key: 'nlp_criteria_positive', pattern: /\*\*Positivo:\*\*\s*([^\n]+)/ },
-    { key: 'nlp_criteria_sensory', pattern: /\*\*Sensório:\*\*\s*([^\n]+)/ },
-    { key: 'nlp_criteria_compelling', pattern: /\*\*Motivador:\*\*\s*([^\n]+)/ },
-    { key: 'nlp_criteria_ecology', pattern: /\*\*Ecologia:\*\*\s*([^\n]+)/ },
-    { key: 'nlp_criteria_self_initiated', pattern: /\*\*Auto-iniciado:\*\*\s*([^\n]+)/ },
-    { key: 'nlp_criteria_context', pattern: /\*\*Contexto:\*\*\s*([^\n]+)/ },
-    { key: 'nlp_criteria_resources', pattern: /\*\*Recursos:\*\*\s*([^\n]+)/ },
-    { key: 'nlp_criteria_evidence', pattern: /\*\*Evidência:\*\*\s*([^\n]+)/ }
+    { key: 'nlp_criteria_positive', patterns: [/\*\*Positivo:\*\*\s*([^\n]+)/, /\*\*Positive:\*\*\s*([^\n]+)/] },
+    { key: 'nlp_criteria_sensory', patterns: [/\*\*Sensório:\*\*\s*([^\n]+)/, /\*\*Sensory:\*\*\s*([^\n]+)/] },
+    { key: 'nlp_criteria_compelling', patterns: [/\*\*Motivador:\*\*\s*([^\n]+)/, /\*\*Compelling:\*\*\s*([^\n]+)/] },
+    { key: 'nlp_criteria_ecology', patterns: [/\*\*Ecologia:\*\*\s*([^\n]+)/, /\*\*Ecology:\*\*\s*([^\n]+)/] },
+    { key: 'nlp_criteria_self_initiated', patterns: [/\*\*Auto-iniciado:\*\*\s*([^\n]+)/, /\*\*Self-initiated:\*\*\s*([^\n]+)/] },
+    { key: 'nlp_criteria_context', patterns: [/\*\*Contexto:\*\*\s*([^\n]+)/, /\*\*Context:\*\*\s*([^\n]+)/] },
+    { key: 'nlp_criteria_resources', patterns: [/\*\*Recursos:\*\*\s*([^\n]+)/, /\*\*Resources:\*\*\s*([^\n]+)/] },
+    { key: 'nlp_criteria_evidence', patterns: [/\*\*Evidência:\*\*\s*([^\n]+)/, /\*\*Evidence:\*\*\s*([^\n]+)/] }
   ];
 
-  for (const { key, pattern } of criteria) {
-    const match = response.match(pattern);
-    if (match && match[1]) {
-      objective[key] = match[1].trim();
+  for (const { key, patterns } of criteria) {
+    for (const pattern of patterns) {
+      const match = response.match(pattern);
+      if (match && match[1]) {
+        objective[key] = match[1].trim();
+        break;
+      }
     }
   }
 
-  // Extrair título
-  const titleMatch = response.match(/\*\*Título:\*\*\s*([^\n]+)/);
+  // Extrair título (PT ou EN)
+  const titleMatch = response.match(/\*\*Título:\*\*\s*([^\n]+)/) || response.match(/\*\*Title:\*\*\s*([^\n]+)/);
   if (titleMatch && titleMatch[1]) {
     objective.title = titleMatch[1].trim();
   }
 
-  // Extrair declaração
-  const statementMatch = response.match(/\*\*Declaração:\*\*\s*([^\n*]+)/);
+  // Extrair declaração (PT ou EN)
+  const statementMatch = response.match(/\*\*Declaração:\*\*\s*([^\n*]+)/) || response.match(/\*\*Statement:\*\*\s*([^\n*]+)/);
   if (statementMatch && statementMatch[1]) {
     objective.statement = statementMatch[1].trim();
   }
 
-  // Extrair data de conclusão (deve ser YYYY-MM-DD para PostgreSQL)
-  const targetMatch = response.match(/\*\*Data de conclusão:\*\*\s*([^\n]+)/);
+  // Extrair data de conclusão (PT ou EN)
+  const targetMatch = response.match(/\*\*Data de conclusão:\*\*\s*([^\n]+)/) || response.match(/\*\*Completion date:\*\*\s*([^\n]+)/) || response.match(/\*\*Target date:\*\*\s*([^\n]+)/);
   if (targetMatch && targetMatch[1]) {
     const dateStr = targetMatch[1].trim();
     objective.target_date = parseTargetDate(dateStr);
@@ -368,7 +399,7 @@ export class NLPQuestionLLM {
     return this.sessions.has(sessionId);
   }
 
-  async askQuestion(sessionId, userMessage, dbHistory = [], persona = { tone: 'neutral', specialization: 'general', archetype: 'mentor' }) {
+  async askQuestion(sessionId, userMessage, dbHistory = [], persona = { tone: 'neutral', specialization: 'general', archetype: 'mentor' }, locale = 'pt-BR') {
     const session = this.sessions.get(sessionId);
 
     if (!session) {
@@ -383,11 +414,12 @@ export class NLPQuestionLLM {
       content: userMessage
     });
 
-    // Fazer pergunta via LLM
+    // Fazer pergunta via LLM (locale = idioma da resposta)
     const llmResponse = await askNLPQuestionViaLLM(
       userMessage,
       [...dbHistory, ...updatedSession.history],
-      persona
+      persona,
+      locale
     );
 
     if (!llmResponse) {

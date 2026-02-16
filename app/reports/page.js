@@ -49,37 +49,20 @@ export default function ReportsPage() {
   return (
     <>
       <TopNavigation />
-      <div style={{ display: 'flex', minHeight: '100vh', paddingTop: '60px', paddingBottom: isMobile ? '80px' : undefined, background: '#0a0a0a', color: '#ededed' }}>
-      {/* Sidebar - oculto no mobile */}
-      <div style={{ display: isMobile ? 'none' : 'block', width: '280px', background: '#111827', borderRight: '1px solid #1f2937', padding: '1rem' }}>
-        <button
-          onClick={() => router.push('/')}
-          style={{
-            width: '100%',
-            padding: '0.75rem',
-            borderRadius: '0.5rem',
-            background: '#1f2937',
-            border: '1px solid #374151',
-            color: '#d1d5db',
-            fontSize: '0.875rem',
-            border: 'none',
-            cursor: 'pointer',
-            marginBottom: '0.5rem'
-          }}
-        >
-          ← Voltar
-        </button>
-
-        <div style={{ marginTop: '2rem', padding: '1rem', background: '#1f2937', borderRadius: '0.5rem' }}>
-          <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
-            📊 PERÍODO
-          </div>
-          <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '1rem' }}>
+      <div style={{ minHeight: '100vh', paddingTop: '60px', paddingBottom: isMobile ? '80px' : undefined, background: '#0a0a0a', color: '#ededed', padding: isMobile ? '1rem' : '2rem' }}>
+        {/* Barra no topo: voltar + período + gerar/baixar */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', padding: '1rem', background: '#111827', borderRadius: '0.5rem', border: '1px solid #1f2937' }}>
+          <button
+            onClick={() => router.push('/')}
+            style={{ padding: '0.5rem 0.75rem', borderRadius: '0.5rem', background: '#1f2937', border: '1px solid #374151', color: '#d1d5db', fontSize: '0.875rem', cursor: 'pointer' }}
+          >
+            ← Voltar
+          </button>
+          <div style={{ display: 'flex', gap: '0.25rem' }}>
             <button
               onClick={() => setPeriod('week')}
               style={{
-                flex: 1,
-                padding: '0.5rem',
+                padding: '0.5rem 0.75rem',
                 borderRadius: '0.25rem',
                 background: period === 'week' ? '#fbbf24' : '#374151',
                 color: period === 'week' ? '#000' : '#d1d5db',
@@ -93,8 +76,7 @@ export default function ReportsPage() {
             <button
               onClick={() => setPeriod('month')}
               style={{
-                flex: 1,
-                padding: '0.5rem',
+                padding: '0.5rem 0.75rem',
                 borderRadius: '0.25rem',
                 background: period === 'month' ? '#fbbf24' : '#374151',
                 color: period === 'month' ? '#000' : '#d1d5db',
@@ -106,13 +88,11 @@ export default function ReportsPage() {
               Mês
             </button>
           </div>
-
           <button
             onClick={generateReport}
             disabled={isLoading}
             style={{
-              width: '100%',
-              padding: '0.75rem',
+              padding: '0.5rem 1rem',
               borderRadius: '0.5rem',
               background: '#10b981',
               color: '#fff',
@@ -125,31 +105,27 @@ export default function ReportsPage() {
           >
             {isLoading ? 'Gerando...' : '📊 Gerar Report'}
           </button>
-
           {report && (
             <button
               onClick={downloadReport}
               style={{
-                width: '100%',
-                padding: '0.75rem',
+                padding: '0.5rem 1rem',
                 borderRadius: '0.5rem',
                 background: '#3b82f6',
                 color: '#fff',
                 fontWeight: '600',
                 fontSize: '0.875rem',
                 border: 'none',
-                cursor: 'pointer',
-                marginTop: '0.5rem'
+                cursor: 'pointer'
               }}
             >
               📥 Baixar TXT
             </button>
           )}
         </div>
-      </div>
 
       {/* Main Content */}
-      <div style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
+      <div>
         <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#fbbf24', marginBottom: '1rem' }}>
           📊 Reports
         </h1>

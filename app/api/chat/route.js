@@ -16,6 +16,34 @@ import { getCoachResponse } from '../../lib/openai';
  */
 const pendingObjectives = new Map();
 
+/** Coach UI strings by locale (for API responses: moderation, approval, quest, help) */
+const COACH_STRINGS = {
+  'pt-BR': {
+    moderationBlock: 'Desculpe, não posso ajudar com esse tipo de solicitação.',
+    objectiveSavedWithQuest: (title, questTitle, milestones, xp) => `✅ **Objetivo NLP salvo com sucesso!**\n\n"${title}"\n\n⚔️ **Quest criada automaticamente!**\n\n"${questTitle}"\n📊 ${milestones} milestones • ${xp} XP\n\nVocê pode ver seus objetivos na aba "Objectives" e suas quests na aba "Quests".`,
+    objectiveSavedNoQuest: (title, err) => `✅ **Objetivo NLP salvo com sucesso!**\n\n"${title}"\n\nAgora você pode ver seus objetivos na aba "Objectives".\n\n⚠️ Não foi possível criar a quest automaticamente: ${err}`,
+    objectiveSavedQuestError: (title, questTitle, memErr) => `⚠️ Objetivo salvo, mas houve um erro ao salvar a memória. ${memErr}\n\n⚔️ Quest criada: "${questTitle}"`,
+    objectiveRejected: (title) => `Tudo bem! Não salvei o objetivo "${title}". Se quiser, podemos conversar mais sobre ele ou criar outro diferente.`,
+    questCreated: (title, milestones, xp) => `⚔️ **Quest criada com sucesso!**\n\n"${title}"\n\n📊 ${milestones} milestones • ${xp} XP\n\nVocê pode ver e gerenciar suas quests na aba "Quests".`,
+    questCreateError: (err) => `❌ Não consegui criar a quest: ${err}`,
+    objectiveSaveError: (err) => `❌ Erro ao salvar objetivo: ${err}`,
+  },
+  'en-US': {
+    moderationBlock: 'Sorry, I can\'t help with that type of request.',
+    objectiveSavedWithQuest: (title, questTitle, milestones, xp) => `✅ **NLP objective saved successfully!**\n\n"${title}"\n\n⚔️ **Quest created automatically!**\n\n"${questTitle}"\n📊 ${milestones} milestones • ${xp} XP\n\nYou can view your objectives in the "Objectives" tab and your quests in the "Quests" tab.`,
+    objectiveSavedNoQuest: (title, err) => `✅ **NLP objective saved successfully!**\n\n"${title}"\n\nYou can now view your objectives in the "Objectives" tab.\n\n⚠️ Could not create the quest automatically: ${err}`,
+    objectiveSavedQuestError: (title, questTitle, memErr) => `⚠️ Objective saved, but there was an error saving memory. ${memErr}\n\n⚔️ Quest created: "${questTitle}"`,
+    objectiveRejected: (title) => `No problem! I didn\'t save the objective "${title}". If you\'d like, we can talk more about it or create a different one.`,
+    questCreated: (title, milestones, xp) => `⚔️ **Quest created successfully!**\n\n"${title}"\n\n📊 ${milestones} milestones • ${xp} XP\n\nYou can view and manage your quests in the "Quests" tab.`,
+    questCreateError: (err) => `❌ Could not create the quest: ${err}`,
+    objectiveSaveError: (err) => `❌ Error saving objective: ${err}`,
+  },
+};
+
+function getCoachStrings(locale) {
+  return COACH_STRINGS[locale] || COACH_STRINGS['pt-BR'];
+}
+
 /**
  * Último objetivo salvo por sessão (para criar quest quando usuário diz "sim")
  */
@@ -219,7 +247,8 @@ export async function POST(request) {
   const sessionId = user.userId;
 
   try {
-    const { message } = await request.json();
+    const { message, locale = 'pt-BR' } = await request.json();
+    const coachStrings = getCoachStrings(locale);
 
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -267,7 +296,7 @@ export async function POST(request) {
     const moderation = checkMessagePolicy(message);
 
     if (!moderation.allowed) {
-      const safeResponse = moderation.response || 'Desculpe, não posso ajudar com esse tipo de solicitação.';
+      const safeResponse = moderation.response || coachStrings.moderationBlock;
 
       await pool.query(
         'INSERT INTO messages (session_id, role, content) VALUES ($1, $2, $3)',
@@ -320,7 +349,7 @@ export async function POST(request) {
         );
 
         if (!saveResult.success) {
-          const errorMessage = `❌ Erro ao salvar objetivo: ${saveResult.error}`;
+          const errorMessage = coachStrings.objectiveSaveError(saveResult.error);
 
           await pool.query(
             'INSERT INTO messages (session_id, role, content) VALUES ($1, $2, $3)',
@@ -347,12 +376,12 @@ export async function POST(request) {
         let successMessage;
         if (questResult.success) {
           successMessage = memoryResult.success
-            ? `✅ **Objetivo NLP salvo com sucesso!**\n\n"${saveResult.title}"\n\n⚔️ **Quest criada automaticamente!**\n\n"${questResult.title}"\n📊 ${questResult.milestones} milestones • ${questResult.xp_reward} XP\n\nVocê pode ver seus objetivos na aba "Objectives" e suas quests na aba "Quests".`
-            : `⚠️ Objetivo salvo, mas houve um erro ao salvar a memória. ${memoryResult.error}\n\n⚔️ Quest criada: "${questResult.title}"`;
+            ? coachStrings.objectiveSavedWithQuest(saveResult.title, questResult.title, questResult.milestones, questResult.xp_reward)
+            : coachStrings.objectiveSavedQuestError(saveResult.title, questResult.title, memoryResult.error);
         } else {
           successMessage = memoryResult.success
-            ? `✅ **Objetivo NLP salvo com sucesso!**\n\n"${saveResult.title}"\n\nAgora você pode ver seus objetivos na aba "Objectives".\n\n⚠️ Não foi possível criar a quest automaticamente: ${questResult.error}`
-            : `⚠️ Objetivo salvo, mas houve um erro ao salvar a memória. ${memoryResult.error}`;
+            ? coachStrings.objectiveSavedNoQuest(saveResult.title, questResult.error)
+            : coachStrings.objectiveSavedQuestError(saveResult.title, '', memoryResult.error);
         }
 
         await pool.query(
@@ -369,7 +398,7 @@ export async function POST(request) {
 
         pendingObjectives.delete(pendingKey);
 
-        const cancelMessage = `Tudo bem! Não salvei o objetivo "${pendingData.objective.title}". Se quiser, podemos conversar mais sobre ele ou criar outro diferente.`;
+        const cancelMessage = coachStrings.objectiveRejected(pendingData.objective.title);
 
         await pool.query(
           'INSERT INTO messages (session_id, role, content) VALUES ($1, $2, $3)',
@@ -394,7 +423,7 @@ export async function POST(request) {
 
       if (questResult.success) {
         lastSavedObjectives.delete(sessionId);
-        const questMessage = `⚔️ **Quest criada com sucesso!**\n\n"${questResult.title}"\n\n📊 ${questResult.milestones} milestones • ${questResult.xp_reward} XP\n\nVocê pode ver e gerenciar suas quests na aba "Quests".`;
+        const questMessage = coachStrings.questCreated(questResult.title, questResult.milestones, questResult.xp_reward);
         await pool.query(
           'INSERT INTO messages (session_id, role, content) VALUES ($1, $2, $3)',
           [sessionId, 'assistant', questMessage]
@@ -402,7 +431,7 @@ export async function POST(request) {
         return NextResponse.json({ message: questMessage });
       }
 
-      const errorMessage = `❌ Não consegui criar a quest: ${questResult.error}`;
+      const errorMessage = coachStrings.questCreateError(questResult.error);
       await pool.query(
         'INSERT INTO messages (session_id, role, content) VALUES ($1, $2, $3)',
         [sessionId, 'assistant', errorMessage]
@@ -418,7 +447,8 @@ export async function POST(request) {
       sessionId,
       message,
       history,
-      persona
+      persona,
+      locale
     );
 
     if (llmResult.success) {
@@ -476,7 +506,7 @@ export async function POST(request) {
         }));
         messagesForOpenAI.push({ role: 'user', content: message });
 
-        const coachResponse = await getCoachResponse(messagesForOpenAI, persona);
+        const coachResponse = await getCoachResponse(messagesForOpenAI, persona, locale);
         
         await pool.query(
           'INSERT INTO messages (session_id, role, content) VALUES ($1, $2, $3)',
@@ -492,7 +522,7 @@ export async function POST(request) {
 
     // Fallback sem OpenAI
     console.log('[Chat] Usando fallback sem OpenAI...');
-    const fallbackMessage = await processWithoutOpenAI(message, history, pool);
+    const fallbackMessage = await processWithoutOpenAI(message, history, pool, locale);
 
     await pool.query(
       'INSERT INTO messages (session_id, role, content) VALUES ($1, $2, $3)',
@@ -508,21 +538,19 @@ export async function POST(request) {
 }
 
 /**
- * Processamento sem OpenAI (fallback)
+ * Processamento sem OpenAI (fallback) — respostas localizadas
  */
-async function processWithoutOpenAI(message, history, pool) {
+async function processWithoutOpenAI(message, history, pool, locale = 'pt-BR') {
   const lowerMessage = message.toLowerCase().trim();
 
-  // Detectar intenção
   const intentions = {
-    greeting: ['oi', 'olá', 'ola', 'hey', 'bom dia', 'boa tarde', 'boa noite'],
-    thanks: ['obrigado', 'valeu', 'thanks', 'agradeço'],
-    help: ['ajuda', 'como funciona', 'funciona', 'como usar'],
-    goal: ['objetivo', 'meta', 'quero', 'pretendo', 'alcançar']
+    greeting: ['oi', 'olá', 'ola', 'hey', 'hi', 'hello', 'bom dia', 'boa tarde', 'boa noite', 'good morning', 'good evening'],
+    thanks: ['obrigado', 'valeu', 'thanks', 'thank you', 'agradeço'],
+    help: ['ajuda', 'help', 'como funciona', 'funciona', 'como usar', 'how does it work'],
+    goal: ['objetivo', 'meta', 'quero', 'pretendo', 'alcançar', 'goal', 'want to achieve']
   };
 
   let detectedIntention = null;
-
   for (const [intention, keywords] of Object.entries(intentions)) {
     if (keywords.some(kw => lowerMessage.includes(kw))) {
       detectedIntention = intention;
@@ -530,16 +558,19 @@ async function processWithoutOpenAI(message, history, pool) {
     }
   }
 
-  // Respostas contextuais
-  const responses = {
-    greeting: `Olá! 👋 Eu sou o GoalsGuild Coach!\n\nEstou aqui para ajudá-lo a alcançar seus objetivos. Posso ajudá-lo a:\n\n🎯 Definir objetivos usando os critérios NLP\n⚔️ Criar quests gamificadas\n📊 Acompanhar seu progresso\n🏆 Desbloquear achievements\n\nComo você está hoje? Sinta-se à vontade para me contar sobre seus objetivos!`,
-
-    thanks: `Por nada! 😊 Estou aqui para ajudá-lo!\n\nTem mais alguma coisa em que posso ajudá-lo?`,
-
-    help: `Claro! Vou te explicar como funciona:\n\n**🎯 Definir Objetivos**\nMe conte sobre um objetivo e eu vou te fazer algumas perguntas para entender melhor.\n\n**⚔️ Quests**\nPosso criar quests (jornadas gamificadas) a partir dos seus objetivos.\n\n**📊 Analytics**\nAcompanhe seu progresso e veja insights personalizados.\n\nPor onde você quer começar?`,
-
-    default: `Entendi! Conte-me mais sobre isso.\n\nQuais são seus objetivos? O que você quer alcançar? Estou aqui para ajudá-lo a criar objetivos NLP completos!`
-  };
+  const responses = locale === 'en-US'
+    ? {
+        greeting: 'Hello! 👋 I\'m the GoalsGuild Coach!\n\nI\'m here to help you achieve your goals. I can help you:\n\n🎯 Set objectives using NLP criteria\n⚔️ Create gamified quests\n📊 Track your progress\n🏆 Unlock achievements\n\nHow are you today? Feel free to tell me about your goals!',
+        thanks: 'You\'re welcome! 😊 I\'m here to help!\n\nIs there anything else I can help you with?',
+        help: 'Sure! Here\'s how it works:\n\n**🎯 Set Objectives**\nTell me about a goal and I\'ll ask you some questions to understand better.\n\n**⚔️ Quests**\nI can create quests (gamified journeys) from your objectives.\n\n**📊 Analytics**\nTrack your progress and see personalized insights.\n\nWhere would you like to start?',
+        default: 'Got it! Tell me more.\n\nWhat are your goals? What do you want to achieve? I\'m here to help you create complete NLP objectives!'
+      }
+    : {
+        greeting: 'Olá! 👋 Eu sou o GoalsGuild Coach!\n\nEstou aqui para ajudá-lo a alcançar seus objetivos. Posso ajudá-lo a:\n\n🎯 Definir objetivos usando os critérios NLP\n⚔️ Criar quests gamificadas\n📊 Acompanhar seu progresso\n🏆 Desbloquear achievements\n\nComo você está hoje? Sinta-se à vontade para me contar sobre seus objetivos!',
+        thanks: 'Por nada! 😊 Estou aqui para ajudá-lo!\n\nTem mais alguma coisa em que posso ajudá-lo?',
+        help: 'Claro! Vou te explicar como funciona:\n\n**🎯 Definir Objetivos**\nMe conte sobre um objetivo e eu vou te fazer algumas perguntas para entender melhor.\n\n**⚔️ Quests**\nPosso criar quests (jornadas gamificadas) a partir dos seus objetivos.\n\n**📊 Analytics**\nAcompanhe seu progresso e veja insights personalizados.\n\nPor onde você quer começar?',
+        default: 'Entendi! Conte-me mais sobre isso.\n\nQuais são seus objetivos? O que você quer alcançar? Estou aqui para ajudá-lo a criar objetivos NLP completos!'
+      };
 
   return responses[detectedIntention] || responses.default;
 }

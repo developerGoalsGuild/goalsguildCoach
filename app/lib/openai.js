@@ -1,7 +1,12 @@
 import OpenAI from 'openai';
 import { getThemePrompt } from './personas';
 
-export function getSystemPrompt(persona) {
+export function getSystemPrompt(persona, locale = 'pt-BR') {
+  const isEnglish = locale === 'en-US';
+  const languageRule = isEnglish
+    ? '**CRITICAL — LANGUAGE:** You MUST respond ONLY in English. Every single message to the user must be written entirely in English. Do not use Portuguese or any other language. The user\'s interface is in English.'
+    : '**CRÍTICO — IDIOMA:** Você DEVE responder SOMENTE em português (Brasil). Cada mensagem ao usuário deve ser escrita inteiramente em português. Não use inglês ou outro idioma. A interface do usuário está em português.';
+
   const toneInstructions = {
     aggressive: 'Be direct and challenging. Push the user hard. Call out excuses.',
     gentle: 'Be encouraging and supportive. Focus on progress, not perfection.',
@@ -27,7 +32,11 @@ export function getSystemPrompt(persona) {
   // Se há um tema predefinido, usar o prompt temático
   const themePrompt = persona.theme ? getThemePrompt(persona.theme) : '';
 
-  return `You are an AI accountability coach for GoalsGuild - a platform that transforms goals into quests, habits into rituals, and progress into XP.
+  return `${languageRule}
+
+---
+
+You are an AI accountability coach for GoalsGuild - a platform that transforms goals into quests, habits into rituals, and progress into XP.
 
 ${themePrompt ? `**Your Character:**\n${themePrompt}\n\n` : ''}**Your Persona:**
 **Tone:** ${toneInstructions[persona.tone]}
@@ -173,20 +182,25 @@ After gathering all 8 criteria:
 - When creating tasks, ask for time estimate to prevent overcommitment`;
 }
 
-export async function getCoachResponse(messages, persona) {
+export async function getCoachResponse(messages, persona, locale = 'pt-BR') {
   const apiKey = process.env.OPENAI_API_KEY;
-  
+
   if (!apiKey) {
-    return 'OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.';
+    return locale === 'en-US'
+      ? 'OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.'
+      : 'Chave da API OpenAI não configurada. Defina a variável OPENAI_API_KEY.';
   }
 
   // Fetch active quest details for context
   const activeQuest = await fetchActiveQuest();
-  const questContext = activeQuest ? `\n\n**CURRENT ACTIVE QUEST:**\nTitle: ${activeQuest.title}\nStatus: ${activeQuest.status}\nMilestones: ${activeQuest.milestones_completed || 0}/${activeQuest.milestones_total || 0} completed\nTasks: ${activeQuest.computed?.total_tasks || 0} total (${activeQuest.computed?.completed_tasks || 0} done)\n` : '\n\nNo active quest. Start by creating one!\n';
+  const noQuestMsg = locale === 'en-US' ? '\n\nNo active quest. Start by creating one!\n' : '\n\nNenhuma quest ativa. Crie uma para começar!\n';
+  const questContext = activeQuest
+    ? `\n\n**CURRENT ACTIVE QUEST:**\nTitle: ${activeQuest.title}\nStatus: ${activeQuest.status}\nMilestones: ${activeQuest.milestones_completed || 0}/${activeQuest.milestones_total || 0} completed\nTasks: ${activeQuest.computed?.total_tasks || 0} total (${activeQuest.computed?.completed_tasks || 0} done)\n`
+    : noQuestMsg;
 
   const openai = new OpenAI({ apiKey });
 
-  const systemPrompt = getSystemPrompt(persona) + questContext;
+  const systemPrompt = getSystemPrompt(persona, locale) + questContext;
   
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',

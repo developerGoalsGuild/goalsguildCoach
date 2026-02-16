@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '../../lib/db';
 import { getAuthToken, verifyJWT } from '../../lib/auth';
 import { TABLES, COLS } from '../../lib/db-schema';
+import { getLevelFromTotalXP, ensureLevelSchema } from '../../lib/level';
 
 export async function GET(request) {
   try {
@@ -13,6 +14,7 @@ export async function GET(request) {
     }
 
     const pool = getPool();
+    await ensureLevelSchema(pool);
     const userId = decoded.userId;
 
     const streakResult = await pool.query(
@@ -35,7 +37,16 @@ export async function GET(request) {
       ['completed', userId]
     );
 
+    const sessionsXP = await pool.query(
+      `SELECT COALESCE(total_xp, 0)::int as total_xp FROM sessions WHERE session_id = $1`,
+      [userId]
+    );
+    const totalXP = Number(sessionsXP.rows[0]?.total_xp ?? 0);
+    const level = getLevelFromTotalXP(totalXP);
+
     return NextResponse.json({
+      level,
+      total_xp: totalXP,
       stats: {
         streak: streakResult.rows[0]?.current_streak || 0,
         longest_streak: streakResult.rows[0]?.longest_streak || 0,
