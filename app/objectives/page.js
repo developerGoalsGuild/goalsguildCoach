@@ -20,6 +20,22 @@ export default function ObjectivesPage() {
   const [showMemory, setShowMemory] = useState(false);
   const [filterMode, setFilterMode] = useState('all');
   const [search, setSearch] = useState('');
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newObjective, setNewObjective] = useState({
+    title: '',
+    description: '',
+    target_date: '',
+    category: '',
+    nlp_criteria_positive: '',
+    nlp_criteria_sensory: '',
+    nlp_criteria_compelling: '',
+    nlp_criteria_ecology: '',
+    nlp_criteria_self_initiated: '',
+    nlp_criteria_context: '',
+    nlp_criteria_resources: '',
+    nlp_criteria_evidence: ''
+  });
 
   useEffect(() => {
     fetchObjectives();
@@ -110,6 +126,88 @@ export default function ObjectivesPage() {
       if (response.ok) fetchReminders();
     } catch (error) {
       console.error('Error deleting reminder:', error);
+    }
+  };
+
+  const handleCreateObjective = async (e) => {
+    e.preventDefault();
+    if (!newObjective.title.trim()) {
+      alert(t('titleRequired') || 'Título é obrigatório');
+      return;
+    }
+
+    // Validar todos os campos NLP obrigatórios
+    const requiredNLPFields = [
+      'nlp_criteria_positive',
+      'nlp_criteria_sensory',
+      'nlp_criteria_compelling',
+      'nlp_criteria_ecology',
+      'nlp_criteria_self_initiated',
+      'nlp_criteria_context',
+      'nlp_criteria_resources',
+      'nlp_criteria_evidence'
+    ];
+
+    const missingFields = requiredNLPFields.filter(field => !newObjective[field]?.trim());
+    if (missingFields.length > 0) {
+      alert(t('allNLPFieldsRequired') || 'Todos os campos NLP são obrigatórios');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/goals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: newObjective.title.trim(),
+          description: newObjective.description.trim() || null,
+          target_date: newObjective.target_date || null,
+          category: newObjective.category || null,
+          is_nlp_complete: true,
+          nlp_criteria_positive: newObjective.nlp_criteria_positive.trim(),
+          nlp_criteria_sensory: newObjective.nlp_criteria_sensory.trim(),
+          nlp_criteria_compelling: newObjective.nlp_criteria_compelling.trim(),
+          nlp_criteria_ecology: newObjective.nlp_criteria_ecology.trim(),
+          nlp_criteria_self_initiated: newObjective.nlp_criteria_self_initiated.trim(),
+          nlp_criteria_context: newObjective.nlp_criteria_context.trim(),
+          nlp_criteria_resources: newObjective.nlp_criteria_resources.trim(),
+          nlp_criteria_evidence: newObjective.nlp_criteria_evidence.trim()
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        alert(t('objectiveCreated') || 'Objetivo NLP completo criado com sucesso!');
+        setShowCreateForm(false);
+        setNewObjective({
+          title: '',
+          description: '',
+          target_date: '',
+          category: '',
+          nlp_criteria_positive: '',
+          nlp_criteria_sensory: '',
+          nlp_criteria_compelling: '',
+          nlp_criteria_ecology: '',
+          nlp_criteria_self_initiated: '',
+          nlp_criteria_context: '',
+          nlp_criteria_resources: '',
+          nlp_criteria_evidence: ''
+        });
+        fetchObjectives();
+      } else {
+        const error = await response.json();
+        alert(error.error || t('createError') || 'Erro ao criar objetivo');
+      }
+    } catch (error) {
+      console.error('Error creating objective:', error);
+      alert(t('createError') || 'Erro ao criar objetivo');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -212,6 +310,371 @@ export default function ObjectivesPage() {
           <p>{t('headerSubtitle')}</p>
         </section>
 
+        <section className="glass-card" style={{ padding: '1rem', marginBottom: '0.9rem' }}>
+          <p style={{ color: 'var(--text-soft)', marginBottom: '0.45rem' }}>{t('actions')}</p>
+          <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginBottom: showCreateForm ? '0.75rem' : '0' }}>
+            <button onClick={() => setShowCreateForm(!showCreateForm)} className={`btn ${showCreateForm ? 'btn-primary' : 'btn-dark'}`}>
+              ➕ {t('createManual')}
+            </button>
+            <button onClick={() => router.push('/coach')} className="btn btn-dark">
+              🤖 {t('talkCoach')}
+            </button>
+            <Link href="/reminders/new" className="btn btn-dark">
+              🔔 {t('newReminder')}
+            </Link>
+          </div>
+
+          {showCreateForm && (
+            <form onSubmit={handleCreateObjective} style={{
+              marginTop: '1rem',
+              padding: '1rem',
+              background: '#111827',
+              borderRadius: '0.5rem',
+              border: '1px solid #374151',
+              maxHeight: '80vh',
+              overflowY: 'auto'
+            }}>
+              <h3 style={{ color: '#fbbf24', fontSize: '1rem', fontWeight: '600', marginBottom: '1rem' }}>
+                📋 {t('basicInfo')}
+              </h3>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
+                  {t('title')} *
+                </label>
+                <input
+                  type="text"
+                  value={newObjective.title}
+                  onChange={(e) => setNewObjective({ ...newObjective, title: e.target.value })}
+                  required
+                  placeholder={t('titlePlaceholder')}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    background: '#1f2937',
+                    border: '1px solid #374151',
+                    color: '#d1d5db',
+                    fontSize: '0.875rem'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
+                  {t('description')}
+                </label>
+                <textarea
+                  value={newObjective.description}
+                  onChange={(e) => setNewObjective({ ...newObjective, description: e.target.value })}
+                  placeholder={t('descriptionPlaceholder')}
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    background: '#1f2937',
+                    border: '1px solid #374151',
+                    color: '#d1d5db',
+                    fontSize: '0.875rem',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
+                    {t('targetDate')}
+                  </label>
+                  <input
+                    type="date"
+                    value={newObjective.target_date}
+                    onChange={(e) => setNewObjective({ ...newObjective, target_date: e.target.value })}
+                    min={new Date().toISOString().split('T')[0]}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      borderRadius: '0.5rem',
+                      background: '#1f2937',
+                      border: '1px solid #374151',
+                      color: '#d1d5db',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
+                    {t('category')}
+                  </label>
+                  <select
+                    value={newObjective.category}
+                    onChange={(e) => setNewObjective({ ...newObjective, category: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      borderRadius: '0.5rem',
+                      background: '#1f2937',
+                      border: '1px solid #374151',
+                      color: '#d1d5db',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    <option value="">{t('selectCategory')}</option>
+                    <option value="career">{t('categoryCareer')}</option>
+                    <option value="health">{t('categoryHealth')}</option>
+                    <option value="fitness">{t('categoryFitness')}</option>
+                    <option value="learning">{t('categoryLearning')}</option>
+                    <option value="finance">{t('categoryFinance')}</option>
+                    <option value="relationships">{t('categoryRelationships')}</option>
+                    <option value="other">{t('categoryOther')}</option>
+                  </select>
+                </div>
+              </div>
+
+              <h3 style={{ color: '#fbbf24', fontSize: '1rem', fontWeight: '600', marginBottom: '1rem', marginTop: '1.5rem', borderTop: '1px solid #374151', paddingTop: '1rem' }}>
+                🎯 {t('nlpCriteria')} (8 Critérios NLP)
+              </h3>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
+                  1. {t('nlpPositive')} *
+                </label>
+                <textarea
+                  value={newObjective.nlp_criteria_positive}
+                  onChange={(e) => setNewObjective({ ...newObjective, nlp_criteria_positive: e.target.value })}
+                  required
+                  placeholder={t('nlpPositivePlaceholder')}
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    background: '#1f2937',
+                    border: '1px solid #374151',
+                    color: '#d1d5db',
+                    fontSize: '0.875rem',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>{t('nlpPositiveHint')}</p>
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
+                  2. {t('nlpSensory')} *
+                </label>
+                <textarea
+                  value={newObjective.nlp_criteria_sensory}
+                  onChange={(e) => setNewObjective({ ...newObjective, nlp_criteria_sensory: e.target.value })}
+                  required
+                  placeholder={t('nlpSensoryPlaceholder')}
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    background: '#1f2937',
+                    border: '1px solid #374151',
+                    color: '#d1d5db',
+                    fontSize: '0.875rem',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>{t('nlpSensoryHint')}</p>
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
+                  3. {t('nlpCompelling')} *
+                </label>
+                <textarea
+                  value={newObjective.nlp_criteria_compelling}
+                  onChange={(e) => setNewObjective({ ...newObjective, nlp_criteria_compelling: e.target.value })}
+                  required
+                  placeholder={t('nlpCompellingPlaceholder')}
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    background: '#1f2937',
+                    border: '1px solid #374151',
+                    color: '#d1d5db',
+                    fontSize: '0.875rem',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>{t('nlpCompellingHint')}</p>
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
+                  4. {t('nlpEcology')} *
+                </label>
+                <textarea
+                  value={newObjective.nlp_criteria_ecology}
+                  onChange={(e) => setNewObjective({ ...newObjective, nlp_criteria_ecology: e.target.value })}
+                  required
+                  placeholder={t('nlpEcologyPlaceholder')}
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    background: '#1f2937',
+                    border: '1px solid #374151',
+                    color: '#d1d5db',
+                    fontSize: '0.875rem',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>{t('nlpEcologyHint')}</p>
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
+                  5. {t('nlpSelfInitiated')} *
+                </label>
+                <textarea
+                  value={newObjective.nlp_criteria_self_initiated}
+                  onChange={(e) => setNewObjective({ ...newObjective, nlp_criteria_self_initiated: e.target.value })}
+                  required
+                  placeholder={t('nlpSelfInitiatedPlaceholder')}
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    background: '#1f2937',
+                    border: '1px solid #374151',
+                    color: '#d1d5db',
+                    fontSize: '0.875rem',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>{t('nlpSelfInitiatedHint')}</p>
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
+                  6. {t('nlpContext')} *
+                </label>
+                <textarea
+                  value={newObjective.nlp_criteria_context}
+                  onChange={(e) => setNewObjective({ ...newObjective, nlp_criteria_context: e.target.value })}
+                  required
+                  placeholder={t('nlpContextPlaceholder')}
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    background: '#1f2937',
+                    border: '1px solid #374151',
+                    color: '#d1d5db',
+                    fontSize: '0.875rem',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>{t('nlpContextHint')}</p>
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
+                  7. {t('nlpResources')} *
+                </label>
+                <textarea
+                  value={newObjective.nlp_criteria_resources}
+                  onChange={(e) => setNewObjective({ ...newObjective, nlp_criteria_resources: e.target.value })}
+                  required
+                  placeholder={t('nlpResourcesPlaceholder')}
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    background: '#1f2937',
+                    border: '1px solid #374151',
+                    color: '#d1d5db',
+                    fontSize: '0.875rem',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>{t('nlpResourcesHint')}</p>
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
+                  8. {t('nlpEvidence')} *
+                </label>
+                <textarea
+                  value={newObjective.nlp_criteria_evidence}
+                  onChange={(e) => setNewObjective({ ...newObjective, nlp_criteria_evidence: e.target.value })}
+                  required
+                  placeholder={t('nlpEvidencePlaceholder')}
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    background: '#1f2937',
+                    border: '1px solid #374151',
+                    color: '#d1d5db',
+                    fontSize: '0.875rem',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                />
+                <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>{t('nlpEvidenceHint')}</p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1.5rem', borderTop: '1px solid #374151', paddingTop: '1rem' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setNewObjective({
+                      title: '',
+                      description: '',
+                      target_date: '',
+                      category: '',
+                      nlp_criteria_positive: '',
+                      nlp_criteria_sensory: '',
+                      nlp_criteria_compelling: '',
+                      nlp_criteria_ecology: '',
+                      nlp_criteria_self_initiated: '',
+                      nlp_criteria_context: '',
+                      nlp_criteria_resources: '',
+                      nlp_criteria_evidence: ''
+                    });
+                  }}
+                  className="btn btn-dark"
+                  disabled={creating}
+                >
+                  {tc('cancel')}
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={creating || !newObjective.title.trim()}
+                >
+                  {creating ? tc('loading') : t('create')}
+                </button>
+              </div>
+            </form>
+          )}
+        </section>
+
         <section
           style={{
             display: 'grid',
@@ -220,17 +683,6 @@ export default function ObjectivesPage() {
             marginBottom: '0.9rem',
           }}
         >
-          <div className="glass-card" style={{ padding: '1rem' }}>
-            <p style={{ color: 'var(--text-soft)', marginBottom: '0.45rem' }}>{t('actions')}</p>
-            <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
-              <button onClick={() => router.push('/coach')} className="btn btn-primary">
-                🤖 {t('talkCoach')}
-              </button>
-              <Link href="/reminders/new" className="btn btn-dark">
-                🔔 {t('newReminder')}
-              </Link>
-            </div>
-          </div>
 
           <div className="glass-card" style={{ padding: '1rem' }}>
             <p style={{ color: 'var(--text-soft)', marginBottom: '0.45rem' }}>{t('remindersActive')}</p>

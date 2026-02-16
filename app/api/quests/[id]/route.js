@@ -65,14 +65,22 @@ export async function GET(request, context) {
       parentGoal = parentGoalResult.rows[0] || null;
     }
 
+    // Calcular completion_percentage baseado em milestones (igual à listagem)
+    const milestonesCompleted = quest.milestones_completed || 0;
+    const milestonesTotal = quest.milestones_total || 0;
+    const completionPercentage = milestonesTotal > 0
+      ? Math.round((milestonesCompleted / milestonesTotal) * 100)
+      : 0;
+
     return NextResponse.json({
       quest: {
         ...quest,
         milestones: quest.milestones || [],
         milestones_summary: {
-          completed: quest.milestones_completed || 0,
-          total: quest.milestones_total || 0
-        }
+          completed: milestonesCompleted,
+          total: milestonesTotal
+        },
+        completion_percentage: completionPercentage
       },
       tasks: tasksResult.rows,
       journal: journalResult.rows,
@@ -80,9 +88,7 @@ export async function GET(request, context) {
       computed: {
         total_tasks: tasksResult.rows.length,
         completed_tasks: tasksResult.rows.filter(t => t.status === 'completed').length,
-        completion_percentage: tasksResult.rows.length > 0
-          ? Math.round((tasksResult.rows.filter(t => t.status === 'completed').length / tasksResult.rows.length) * 100)
-          : 0,
+        completion_percentage: completionPercentage, // Usar milestones, não tasks
         total_estimated_hours: tasksResult.rows.reduce((sum, t) => sum + (parseFloat(t.estimated_hours) || 0), 0),
         journal_entries: journalResult.rows.length
       }
@@ -109,7 +115,7 @@ export async function PATCH(request, context) {
     const userId = decoded.userId;
 
     const existing = await pool.query(
-      'SELECT status FROM quests WHERE id::text = $1::text AND ' + COLS.questsUser + ' = $2::text LIMIT 1',
+      `SELECT status, parent_goal_id FROM quests WHERE id::text = $1::text AND ${COLS.questsUser} = $2::text LIMIT 1`,
       [questId, userId]
     );
     if (existing.rows.length === 0) {
@@ -118,8 +124,12 @@ export async function PATCH(request, context) {
     if (existing.rows[0].status === 'completed') {
       return NextResponse.json({ error: 'Completed quests cannot be updated' }, { status: 400 });
     }
+    if (existing.rows[0].status === 'cancelled') {
+      return NextResponse.json({ error: 'Cancelled quests cannot be updated' }, { status: 400 });
+    }
 
     const updates = await request.json();
+    const { feeling, reflection } = updates;
 
     // Map numeric difficulty (1-5) to string for DB constraint
     if (updates.difficulty !== undefined) {
@@ -146,9 +156,16 @@ export async function PATCH(request, context) {
         paramCount++;
       }
     }
+    
+    // Remover feeling e reflection dos updates (não são campos da tabela)
+    delete updates.feeling;
+    delete updates.reflection;
 
-    // When marking as completed, set completed_at
-    if (updates.status === 'completed') {
+    // When marking as completed or failed, set completed_at and save to memory
+    const isCompleting = updates.status === 'completed';
+    const isFailing = updates.status === 'cancelled' || updates.status === 'failed';
+    
+    if (isCompleting || isFailing) {
       updateFields.push(`completed_at = $${paramCount}`);
       values.push(new Date());
       paramCount++;
@@ -164,6 +181,60 @@ export async function PATCH(request, context) {
       `UPDATE quests SET ${updateFields.join(', ')} WHERE id::text = $${paramCount}::text AND ${COLS.questsUser} = $${paramCount + 1}::text`,
       values
     );
+
+    // Salvar na memória do objetivo se houver parent_goal_id
+    if ((isCompleting || isFailing) && existing.rows[0].parent_goal_id) {
+      try {
+        const questResult = await pool.query(
+          `SELECT title, description FROM quests WHERE id::text = $1::text`,
+          [questId]
+        );
+        const quest = questResult.rows[0];
+
+        const journalContent = JSON.stringify({
+          type: isCompleting ? 'quest_completed' : 'quest_failed',
+          quest_title: quest?.title,
+          quest_id: questId,
+          completed_at: new Date().toISOString(),
+          ...(feeling && typeof feeling === 'string' && feeling.trim() && { feeling: feeling.trim() }),
+          ...(reflection && typeof reflection === 'string' && reflection.trim() && { reflection: reflection.trim() })
+        });
+
+        // Salvar no quest_journal
+        await pool.query(
+          `INSERT INTO quest_journal (quest_id, entry_type, content, created_at)
+           VALUES ($1::text, $2, $3, NOW())`,
+          [questId, isCompleting ? 'quest_completed' : 'quest_failed', journalContent]
+        );
+
+        // Salvar na memória do objetivo (objective_memories)
+        try {
+          const memoryContent = `
+**Quest ${isCompleting ? 'Completada' : 'Falhada'}: ${quest?.title || 'Quest'}**
+
+${isCompleting ? '✅' : '❌'} Status: ${isCompleting ? 'Completada' : 'Falhada'}
+📅 Data: ${new Date().toLocaleDateString('pt-BR')}
+
+${feeling ? `💭 **Como você está se sentindo:**\n${feeling}\n` : ''}
+${reflection ? `📝 **Reflexão:**\n${reflection}\n` : ''}
+
+---
+
+*Salvo automaticamente ao ${isCompleting ? 'completar' : 'falhar'} a quest*
+          `.trim();
+
+          await pool.query(
+            `INSERT INTO objective_memories (objective_id, session_id, memory, created_at)
+             VALUES ($1::text, $2::text, $3, NOW())`,
+            [existing.rows[0].parent_goal_id, userId, memoryContent]
+          );
+        } catch (e) {
+          console.warn('[Quest] objective_memories update skipped:', e.message);
+        }
+      } catch (e) {
+        console.warn('[Quest] Memory update skipped:', e.message);
+      }
+    }
 
     return NextResponse.json({ success: true });
 

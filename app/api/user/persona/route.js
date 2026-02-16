@@ -23,20 +23,13 @@ export async function GET(request) {
       await pool.query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS persona_tone VARCHAR(50) DEFAULT \'neutral\'');
       await pool.query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS persona_specialization VARCHAR(50) DEFAULT \'general\'');
       await pool.query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS persona_archetype VARCHAR(50) DEFAULT \'mentor\'');
+      await pool.query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS persona_theme VARCHAR(50)');
     } catch (alterErr) {
       console.warn('[persona GET] Could not add persona columns (may already exist):', alterErr.message);
     }
 
-    // Check if theme column exists
-    let selectCols = 'persona_tone, persona_specialization, persona_archetype';
-    try {
-      const themeColCheck = await pool.query(
-        `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sessions' AND column_name = 'persona_theme'`
-      );
-      if (themeColCheck.rows.length > 0) {
-        selectCols += ', persona_theme';
-      }
-    } catch (_) {}
+    // Theme column should exist now, always include it
+    let selectCols = 'persona_tone, persona_specialization, persona_archetype, persona_theme';
 
     // Check if session exists, create if not
     let result = await pool.query(
@@ -100,6 +93,18 @@ export async function PATCH(request) {
     const body = await request.json();
     const { tone, specialization, archetype, theme } = body;
 
+    const pool = getPool();
+
+    // Ensure persona columns exist before updating
+    try {
+      await pool.query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS persona_tone VARCHAR(50) DEFAULT \'neutral\'');
+      await pool.query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS persona_specialization VARCHAR(50) DEFAULT \'general\'');
+      await pool.query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS persona_archetype VARCHAR(50) DEFAULT \'mentor\'');
+      await pool.query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS persona_theme VARCHAR(50)');
+    } catch (alterErr) {
+      console.warn('[persona PATCH] Could not add persona columns (may already exist):', alterErr.message);
+    }
+
     // Validate values
     const validTones = ['aggressive', 'gentle', 'neutral', 'sharp', 'warm'];
     const validSpecializations = ['productivity', 'fitness', 'career', 'general'];
@@ -124,28 +129,21 @@ export async function PATCH(request) {
       values.push(archetype);
     }
 
-    // Theme is optional (for predefined personas)
+    // Theme is optional (for predefined personas) - always include it if provided
     if (theme !== undefined) {
-      // Check if theme column exists, if not, we'll skip it
-      try {
-        const themeColCheck = await pool.query(
-          `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sessions' AND column_name = 'persona_theme'`
-        );
-        if (themeColCheck.rows.length === 0) {
-          await pool.query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS persona_theme VARCHAR(50)');
-        }
-        updates.push(`persona_theme = $${paramIndex++}`);
-        values.push(theme || null);
-      } catch (_) {
-        // Ignore if theme column can't be added
-      }
+      updates.push(`persona_theme = $${paramIndex++}`);
+      values.push(theme || null);
+    }
+
+    // Se não há updates mas theme foi enviado, adicionar theme mesmo assim
+    if (updates.length === 0 && theme !== undefined) {
+      updates.push(`persona_theme = $${paramIndex++}`);
+      values.push(theme || null);
     }
 
     if (updates.length === 0) {
       return NextResponse.json({ error: 'No valid persona fields to update' }, { status: 400 });
     }
-
-    const pool = getPool();
     
     // Only add updated_at if the column exists
     try {
@@ -160,15 +158,6 @@ export async function PATCH(request) {
     }
     
     values.push(sessionId);
-    
-    // Ensure persona columns exist before updating
-    try {
-      await pool.query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS persona_tone VARCHAR(50) DEFAULT \'neutral\'');
-      await pool.query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS persona_specialization VARCHAR(50) DEFAULT \'general\'');
-      await pool.query('ALTER TABLE sessions ADD COLUMN IF NOT EXISTS persona_archetype VARCHAR(50) DEFAULT \'mentor\'');
-    } catch (alterErr) {
-      console.warn('[persona PATCH] Could not add persona columns (may already exist):', alterErr.message);
-    }
 
     // Check if session exists, create if not
     let sessionCheck = await pool.query(

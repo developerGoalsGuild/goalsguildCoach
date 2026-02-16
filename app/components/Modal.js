@@ -17,7 +17,8 @@ export default function Modal({
   children,
   confirmText,
   cancelText,
-  type = 'danger'
+  type = 'danger',
+  disabled = false
 }) {
   const t = useTranslations('common');
   const finalConfirmText = confirmText || t('confirm');
@@ -37,8 +38,8 @@ export default function Modal({
   if (!isOpen) return null;
 
   const handleConfirm = () => {
+    if (disabled) return;
     onConfirm();
-    onClose();
   };
 
   return (
@@ -102,15 +103,17 @@ export default function Modal({
           
           <button
             onClick={handleConfirm}
+            disabled={disabled}
             style={{
               padding: '0.75rem 1.5rem',
-              background: type === 'danger' ? '#dc2626' : '#f59e0b',
+              background: disabled ? '#374151' : (type === 'danger' ? '#dc2626' : '#f59e0b'),
               color: '#fff',
               fontWeight: '600',
               borderRadius: '0.5rem',
               border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.875rem'
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              fontSize: '0.875rem',
+              opacity: disabled ? 0.6 : 1
             }}
           >
             {finalConfirmText}

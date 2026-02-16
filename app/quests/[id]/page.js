@@ -26,6 +26,11 @@ export default function QuestDetailPage() {
   const [isMobile, setIsMobile] = useState(false);
   const [showEditQuestModal, setShowEditQuestModal] = useState(false);
   const [editQuestTargetDate, setEditQuestTargetDate] = useState('');
+  const [showCompleteQuestModal, setShowCompleteQuestModal] = useState(false);
+  const [showFailQuestModal, setShowFailQuestModal] = useState(false);
+  const [questFeeling, setQuestFeeling] = useState('');
+  const [questReflection, setQuestReflection] = useState('');
+  const [completingQuest, setCompletingQuest] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -151,22 +156,87 @@ export default function QuestDetailPage() {
     }
   };
 
-  const completeQuest = async () => {
-    if (!confirm('Tem certeza que deseja completar esta quest?')) return;
+  const openCompleteQuestModal = () => {
+    setQuestFeeling('');
+    setQuestReflection('');
+    setShowCompleteQuestModal(true);
+  };
 
+  const openFailQuestModal = () => {
+    setQuestFeeling('');
+    setQuestReflection('');
+    setShowFailQuestModal(true);
+  };
+
+  const completeQuest = async () => {
+    if (!questFeeling.trim()) {
+      alert('Por favor, descreva como você está se sentindo.');
+      return;
+    }
+
+    setCompletingQuest(true);
     try {
       const res = await authFetch(`/api/quests/${questId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed' }),
+        body: JSON.stringify({
+          status: 'completed',
+          feeling: questFeeling.trim(),
+          reflection: questReflection.trim() || null
+        }),
       });
 
       if (res.ok) {
+        setShowCompleteQuestModal(false);
+        setQuestFeeling('');
+        setQuestReflection('');
         alert('🎉 Quest completa! XP ganho!');
-        window.location.href = '/quests';
+        await loadQuestData();
+        setTimeout(() => {
+          window.location.href = '/quests';
+        }, 500);
       }
     } catch (error) {
       console.error('Failed to complete quest:', error);
+      alert('Erro ao completar quest');
+    } finally {
+      setCompletingQuest(false);
+    }
+  };
+
+  const failQuest = async () => {
+    if (!questFeeling.trim()) {
+      alert('Por favor, descreva como você está se sentindo.');
+      return;
+    }
+
+    setCompletingQuest(true);
+    try {
+      const res = await authFetch(`/api/quests/${questId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'cancelled',
+          feeling: questFeeling.trim(),
+          reflection: questReflection.trim() || null
+        }),
+      });
+
+      if (res.ok) {
+        setShowFailQuestModal(false);
+        setQuestFeeling('');
+        setQuestReflection('');
+        alert('Quest marcada como falhada. Continue tentando! 💪');
+        await loadQuestData();
+        setTimeout(() => {
+          window.location.href = '/quests';
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Failed to fail quest:', error);
+      alert('Erro ao falhar quest');
+    } finally {
+      setCompletingQuest(false);
     }
   };
 
@@ -269,17 +339,30 @@ export default function QuestDetailPage() {
                   {quest.difficulty}
                 </span>
               </div>
-              {quest.status === 'active' && (
-                <button
-                  onClick={completeQuest}
-                  style={{ padding: '0.75rem 1.5rem', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '0.5rem', fontWeight: '600', cursor: 'pointer', fontSize: '0.875rem' }}
-                >
-                  ✅ Completar Quest
-                </button>
+              {quest.status !== 'completed' && quest.status !== 'cancelled' && (
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={openCompleteQuestModal}
+                    style={{ padding: '0.75rem 1.5rem', background: '#22c55e', color: '#fff', border: 'none', borderRadius: '0.5rem', fontWeight: '600', cursor: 'pointer', fontSize: '0.875rem' }}
+                  >
+                    ✅ Completar Quest
+                  </button>
+                  <button
+                    onClick={openFailQuestModal}
+                    style={{ padding: '0.75rem 1.5rem', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '0.5rem', fontWeight: '600', cursor: 'pointer', fontSize: '0.875rem' }}
+                  >
+                    ❌ Falhar Quest
+                  </button>
+                </div>
               )}
               {quest.status === 'completed' && (
                 <div style={{ padding: '0.5rem 1rem', background: '#22c55e', borderRadius: '0.5rem', color: '#fff', fontSize: '0.875rem' }}>
                   ✓ Quest Completa!
+                </div>
+              )}
+              {quest.status === 'cancelled' && (
+                <div style={{ padding: '0.5rem 1rem', background: '#ef4444', borderRadius: '0.5rem', color: '#fff', fontSize: '0.875rem' }}>
+                  ✗ Quest Falhada
                 </div>
               )}
             </div>
@@ -515,6 +598,116 @@ export default function QuestDetailPage() {
             />
           </>
         )}
+      </Modal>
+
+      <Modal
+        isOpen={showCompleteQuestModal}
+        onClose={() => { setShowCompleteQuestModal(false); setQuestFeeling(''); setQuestReflection(''); }}
+        onConfirm={completeQuest}
+        title="✅ Completar Quest"
+        confirmText={completingQuest ? tc('loading') : 'Completar'}
+        cancelText={tc('cancel')}
+        type="success"
+        disabled={completingQuest || !questFeeling.trim()}
+      >
+        <p style={{ marginBottom: '1rem', color: '#d1d5db' }}>
+          Parabéns por completar esta quest! 🎉
+        </p>
+        <label style={{ display: 'block', fontSize: '0.875rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
+          Como você está se sentindo? *
+        </label>
+        <textarea
+          value={questFeeling}
+          onChange={(e) => setQuestFeeling(e.target.value)}
+          placeholder="Ex: Estou muito feliz e orgulhoso de ter completado esta quest!"
+          rows={3}
+          required
+          style={{
+            width: '100%',
+            padding: '0.75rem',
+            background: '#111827',
+            border: '1px solid #374151',
+            borderRadius: '0.5rem',
+            color: '#d1d5db',
+            fontSize: '0.875rem',
+            resize: 'vertical',
+            marginBottom: '1rem'
+          }}
+        />
+        <label style={{ display: 'block', fontSize: '0.875rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
+          Reflexão (opcional)
+        </label>
+        <textarea
+          value={questReflection}
+          onChange={(e) => setQuestReflection(e.target.value)}
+          placeholder="O que você aprendeu? O que foi mais desafiador?"
+          rows={3}
+          style={{
+            width: '100%',
+            padding: '0.75rem',
+            background: '#111827',
+            border: '1px solid #374151',
+            borderRadius: '0.5rem',
+            color: '#d1d5db',
+            fontSize: '0.875rem',
+            resize: 'vertical'
+          }}
+        />
+      </Modal>
+
+      <Modal
+        isOpen={showFailQuestModal}
+        onClose={() => { setShowFailQuestModal(false); setQuestFeeling(''); setQuestReflection(''); }}
+        onConfirm={failQuest}
+        title="❌ Falhar Quest"
+        confirmText={completingQuest ? tc('loading') : 'Confirmar'}
+        cancelText={tc('cancel')}
+        type="danger"
+        disabled={completingQuest || !questFeeling.trim()}
+      >
+        <p style={{ marginBottom: '1rem', color: '#d1d5db' }}>
+          Tem certeza que deseja marcar esta quest como falhada?
+        </p>
+        <label style={{ display: 'block', fontSize: '0.875rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
+          Como você está se sentindo? *
+        </label>
+        <textarea
+          value={questFeeling}
+          onChange={(e) => setQuestFeeling(e.target.value)}
+          placeholder="Ex: Estou frustrado, mas aprendi muito com esta tentativa."
+          rows={3}
+          required
+          style={{
+            width: '100%',
+            padding: '0.75rem',
+            background: '#111827',
+            border: '1px solid #374151',
+            borderRadius: '0.5rem',
+            color: '#d1d5db',
+            fontSize: '0.875rem',
+            resize: 'vertical',
+            marginBottom: '1rem'
+          }}
+        />
+        <label style={{ display: 'block', fontSize: '0.875rem', color: '#9ca3af', marginBottom: '0.5rem' }}>
+          Reflexão (opcional)
+        </label>
+        <textarea
+          value={questReflection}
+          onChange={(e) => setQuestReflection(e.target.value)}
+          placeholder="O que aconteceu? O que você aprendeu? O que faria diferente?"
+          rows={3}
+          style={{
+            width: '100%',
+            padding: '0.75rem',
+            background: '#111827',
+            border: '1px solid #374151',
+            borderRadius: '0.5rem',
+            color: '#d1d5db',
+            fontSize: '0.875rem',
+            resize: 'vertical'
+          }}
+        />
       </Modal>
     </div>
     </>

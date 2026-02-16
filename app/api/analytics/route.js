@@ -27,7 +27,10 @@ export async function GET(request) {
       milestonesTable = msTableResult.rows.some((r) => r.table_name === 'quest_milestones')
         ? 'quest_milestones'
         : 'milestones';
-    } catch (_) {}
+      console.log('[Analytics] Using milestones table:', milestonesTable);
+    } catch (e) {
+      console.warn('[Analytics] Could not detect milestones table:', e.message);
+    }
 
     // Detect XP column (xp_reward, estimated_xp, or current_xp)
     let xpColumn = null;
@@ -57,52 +60,122 @@ export async function GET(request) {
 
     // 2. Week stats: quests completed, milestones completed (from quest_milestones), xp, active days
     const weekQuests = await pool.query(
-      `SELECT COUNT(*)::int as n, COALESCE(SUM(${xpColExpr}), 0)::int as xp FROM quests WHERE ${COLS.questsUser} = $1 AND status = 'completed' AND completed_at >= $2`,
+      `SELECT COUNT(*)::int as n, COALESCE(SUM(${xpColExpr}), 0)::int as xp FROM quests WHERE ${COLS.questsUser} = $1::text AND status = 'completed' AND completed_at >= $2`,
       [sessionId, weekAgo]
     );
+    
+    // Milestones: contar por status 'completed' e usar completed_at se disponível, senão usar created_at como fallback
     const weekMilestones = await pool.query(
-      `SELECT COUNT(*)::int as n FROM ${milestonesTable} m WHERE m.quest_id IN (SELECT id FROM quests WHERE ${COLS.questsUser} = $1) AND m.status = 'completed' AND m.completed_at IS NOT NULL AND m.completed_at >= $2`,
+      `SELECT COUNT(*)::int as n 
+       FROM ${milestonesTable} m 
+       INNER JOIN quests q ON m.quest_id::text = q.id::text 
+       WHERE q.${COLS.questsUser} = $1::text 
+         AND m.status = 'completed' 
+         AND (
+           (m.completed_at IS NOT NULL AND m.completed_at >= $2)
+           OR (m.completed_at IS NULL AND m.created_at >= $2)
+         )`,
       [sessionId, weekAgo]
     );
+    
+    // Tasks: contar por status 'completed' e usar completed_at se disponível, senão usar created_at como fallback
+    const weekTasks = await pool.query(
+      `SELECT COUNT(*)::int as n 
+       FROM ${TABLES.tasks} 
+       WHERE ${COLS.questsUser} = $1::text 
+         AND status = 'completed' 
+         AND (
+           (completed_at IS NOT NULL AND completed_at >= $2)
+           OR (completed_at IS NULL AND created_at >= $2)
+         )`,
+      [sessionId, weekAgo]
+    );
+    
+    console.log('[Analytics] Week stats:', {
+      milestones: weekMilestones.rows[0]?.n || 0,
+      tasks: weekTasks.rows[0]?.n || 0,
+      milestonesTable,
+      tasksTable: TABLES.tasks
+    });
     const weekActiveDays = await pool.query(
       `SELECT COUNT(DISTINCT d)::int as n FROM (
-        SELECT DATE(completed_at) as d FROM quests WHERE ${COLS.questsUser} = $1 AND completed_at >= $2 AND status = 'completed'
+        SELECT DATE(completed_at) as d FROM quests WHERE ${COLS.questsUser} = $1::text AND completed_at >= $2 AND status = 'completed'
         UNION
-        SELECT DATE(m.completed_at) FROM ${milestonesTable} m WHERE m.quest_id IN (SELECT id FROM quests WHERE ${COLS.questsUser} = $1) AND m.completed_at IS NOT NULL AND m.completed_at >= $2 AND m.status = 'completed'
+        SELECT DATE(COALESCE(m.completed_at, m.created_at)) FROM ${milestonesTable} m 
+        INNER JOIN quests q ON m.quest_id::text = q.id::text 
+        WHERE q.${COLS.questsUser} = $1::text 
+          AND m.status = 'completed' 
+          AND (COALESCE(m.completed_at, m.created_at) >= $2)
         UNION
-        SELECT DATE(completed_at) FROM ${TABLES.tasks} WHERE ${COLS.questsUser} = $1 AND completed_at >= $2 AND status = 'completed'
+        SELECT DATE(COALESCE(completed_at, created_at)) FROM ${TABLES.tasks} 
+        WHERE ${COLS.questsUser} = $1::text 
+          AND status = 'completed' 
+          AND (COALESCE(completed_at, created_at) >= $2)
       ) x`,
       [sessionId, weekAgo]
     );
     const weekStats = {
       quests_completed: Number(weekQuests.rows[0]?.n || 0),
       milestones_completed: Number(weekMilestones.rows[0]?.n || 0),
+      tasks_completed: Number(weekTasks.rows[0]?.n || 0),
       xp_earned: Number(weekQuests.rows[0]?.xp || 0),
       active_days: Number(weekActiveDays.rows[0]?.n || 0),
     };
 
     // 3. Month stats
     const monthQuests = await pool.query(
-      `SELECT COUNT(*)::int as n, COALESCE(SUM(${xpColExpr}), 0)::int as xp FROM quests WHERE ${COLS.questsUser} = $1 AND status = 'completed' AND completed_at >= $2`,
+      `SELECT COUNT(*)::int as n, COALESCE(SUM(${xpColExpr}), 0)::int as xp FROM quests WHERE ${COLS.questsUser} = $1::text AND status = 'completed' AND completed_at >= $2`,
       [sessionId, monthAgo]
     );
     const monthMilestones = await pool.query(
-      `SELECT COUNT(*)::int as n FROM ${milestonesTable} m WHERE m.quest_id IN (SELECT id FROM quests WHERE ${COLS.questsUser} = $1) AND m.status = 'completed' AND m.completed_at IS NOT NULL AND m.completed_at >= $2`,
+      `SELECT COUNT(*)::int as n 
+       FROM ${milestonesTable} m 
+       INNER JOIN quests q ON m.quest_id::text = q.id::text 
+       WHERE q.${COLS.questsUser} = $1::text 
+         AND m.status = 'completed' 
+         AND (
+           (m.completed_at IS NOT NULL AND m.completed_at >= $2)
+           OR (m.completed_at IS NULL AND m.created_at >= $2)
+         )`,
       [sessionId, monthAgo]
     );
+    const monthTasks = await pool.query(
+      `SELECT COUNT(*)::int as n 
+       FROM ${TABLES.tasks} 
+       WHERE ${COLS.questsUser} = $1::text 
+         AND status = 'completed' 
+         AND (
+           (completed_at IS NOT NULL AND completed_at >= $2)
+           OR (completed_at IS NULL AND created_at >= $2)
+         )`,
+      [sessionId, monthAgo]
+    );
+    
+    console.log('[Analytics] Month stats:', {
+      milestones: monthMilestones.rows[0]?.n || 0,
+      tasks: monthTasks.rows[0]?.n || 0
+    });
     const monthActiveDays = await pool.query(
       `SELECT COUNT(DISTINCT d)::int as n FROM (
-        SELECT DATE(completed_at) as d FROM quests WHERE ${COLS.questsUser} = $1 AND completed_at >= $2 AND status = 'completed'
+        SELECT DATE(completed_at) as d FROM quests WHERE ${COLS.questsUser} = $1::text AND completed_at >= $2 AND status = 'completed'
         UNION
-        SELECT DATE(m.completed_at) FROM ${milestonesTable} m WHERE m.quest_id IN (SELECT id FROM quests WHERE ${COLS.questsUser} = $1) AND m.completed_at IS NOT NULL AND m.completed_at >= $2 AND m.status = 'completed'
+        SELECT DATE(COALESCE(m.completed_at, m.created_at)) FROM ${milestonesTable} m 
+        INNER JOIN quests q ON m.quest_id::text = q.id::text 
+        WHERE q.${COLS.questsUser} = $1::text 
+          AND m.status = 'completed' 
+          AND (COALESCE(m.completed_at, m.created_at) >= $2)
         UNION
-        SELECT DATE(completed_at) FROM ${TABLES.tasks} WHERE ${COLS.questsUser} = $1 AND completed_at >= $2 AND status = 'completed'
+        SELECT DATE(COALESCE(completed_at, created_at)) FROM ${TABLES.tasks} 
+        WHERE ${COLS.questsUser} = $1::text 
+          AND status = 'completed' 
+          AND (COALESCE(completed_at, created_at) >= $2)
       ) x`,
       [sessionId, monthAgo]
     );
     const monthStats = {
       quests_completed: Number(monthQuests.rows[0]?.n || 0),
       milestones_completed: Number(monthMilestones.rows[0]?.n || 0),
+      tasks_completed: Number(monthTasks.rows[0]?.n || 0),
       xp_earned: Number(monthQuests.rows[0]?.xp || 0),
       active_days: Number(monthActiveDays.rows[0]?.n || 0),
     };
@@ -110,12 +183,15 @@ export async function GET(request) {
     // 4. Productivity by day of week (last month) - from milestones
     const dailyProductivity = await pool.query(
       `SELECT 
-        EXTRACT(DOW FROM m.completed_at)::int as day_of_week,
+        EXTRACT(DOW FROM COALESCE(m.completed_at, m.created_at))::int as day_of_week,
         COUNT(*)::int as milestones_count,
         0 as xp_earned
        FROM ${milestonesTable} m
-       WHERE m.quest_id IN (SELECT id FROM quests WHERE ${COLS.questsUser} = $1) AND m.completed_at IS NOT NULL AND m.completed_at >= $2 AND m.status = 'completed'
-       GROUP BY EXTRACT(DOW FROM m.completed_at)
+       INNER JOIN quests q ON m.quest_id::text = q.id::text
+       WHERE q.${COLS.questsUser} = $1::text 
+         AND m.status = 'completed' 
+         AND (COALESCE(m.completed_at, m.created_at) >= $2)
+       GROUP BY EXTRACT(DOW FROM COALESCE(m.completed_at, m.created_at))
        ORDER BY day_of_week`,
       [sessionId, monthAgo]
     );
@@ -131,11 +207,11 @@ export async function GET(request) {
         o.is_nlp_complete,
         COUNT(DISTINCT q.id) as quests_created,
         COUNT(DISTINCT CASE WHEN q.status = 'completed' THEN q.id END) as quests_completed,
-        COALESCE(SUM(COALESCE(q.xp_reward, 0)), 0) as total_xp_earned,
-        COALESCE(SUM(COALESCE(q.xp_reward, 0)), 0) as total_xp
+        COALESCE(SUM(CASE WHEN q.status = 'completed' THEN ${xpColExpr} ELSE 0 END), 0) as total_xp_earned,
+        COALESCE(SUM(${xpColExpr}), 0) as total_xp
        FROM goals o
        LEFT JOIN quests q ON q.parent_goal_id::text = o.id::text
-       WHERE o.${COLS.goalsUser} = $1
+       WHERE o.${COLS.goalsUser} = $1::text
        GROUP BY o.id, o.title, o.statement, o.created_at, o.status, o.is_nlp_complete
        ORDER BY o.created_at DESC`,
       [sessionId]
@@ -143,10 +219,12 @@ export async function GET(request) {
 
     // 6. Tasks trend (last 30 days) - from tasks table
     const tasksTrend = await pool.query(
-      `SELECT DATE(completed_at) as date, COUNT(*)::int as completed
+      `SELECT DATE(COALESCE(completed_at, created_at)) as date, COUNT(*)::int as completed
        FROM ${TABLES.tasks}
-       WHERE ${COLS.questsUser} = $1 AND completed_at >= $2 AND status = 'completed'
-       GROUP BY DATE(completed_at)
+       WHERE ${COLS.questsUser} = $1::text 
+         AND status = 'completed' 
+         AND (COALESCE(completed_at, created_at) >= $2)
+       GROUP BY DATE(COALESCE(completed_at, created_at))
        ORDER BY date DESC
        LIMIT 30`,
       [sessionId, monthAgo]

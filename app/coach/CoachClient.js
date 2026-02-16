@@ -4,13 +4,14 @@ import TopNavigation from '../components/TopNavigation';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { isAuthenticated, getToken } from '../lib/auth-helpers';
-import { useTranslations } from '../lib/i18n';
-import { getAllPredefinedPersonas, getPredefinedPersona } from '../lib/personas';
+import { useTranslations, useLocale } from '../lib/i18n';
+import { getAllPredefinedPersonas, getPredefinedPersona, getWelcomeMessage } from '../lib/personas';
 
 export default function CoachClient() {
   const router = useRouter();
   const t = useTranslations('coach');
   const tc = useTranslations('common');
+  const { locale } = useLocale();
   const [messages, setMessages] = useState([
     { role: 'assistant', content: t('welcome') }
   ]);
@@ -20,12 +21,13 @@ export default function CoachClient() {
   const [showQuickTips, setShowQuickTips] = useState(true);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [showPersonalityModal, setShowPersonalityModal] = useState(false);
-  const [persona, setPersona] = useState({ tone: 'neutral', specialization: 'general', archetype: 'mentor' });
+  const [persona, setPersona] = useState({ tone: 'neutral', specialization: 'general', archetype: 'mentor', theme: null });
   const [selectedPreset, setSelectedPreset] = useState(null);
   const [savingPersonality, setSavingPersonality] = useState(false);
-  const [showCustomSettings, setShowCustomSettings] = useState(false);
   const [currentPersonaName, setCurrentPersonaName] = useState(null);
   const messagesEndRef = useRef(null);
+  const welcomeMessageSetRef = useRef(false);
+  const personalityLoadedRef = useRef(false);
   const predefinedPersonas = getAllPredefinedPersonas();
 
   useEffect(() => {
@@ -54,11 +56,13 @@ export default function CoachClient() {
 
   useEffect(() => {
     const loadPersonality = async () => {
-      if (!isAuthenticated()) return;
+      if (!isAuthenticated() || personalityLoadedRef.current) return;
       
       try {
         const token = getToken();
         if (!token) return;
+
+        personalityLoadedRef.current = true; // Marcar como carregado antes da chamada
 
         const response = await fetch('/api/user/persona', {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -74,36 +78,68 @@ export default function CoachClient() {
               const preset = getPredefinedPersona(data.persona.theme);
               if (preset) {
                 setCurrentPersonaName(preset.name);
+                // Atualizar mensagem inicial apenas se ainda não foi atualizada
+                if (!welcomeMessageSetRef.current) {
+                  const welcomeMsg = getWelcomeMessage(data.persona.theme, locale);
+                  if (welcomeMsg) {
+                    setMessages([{ role: 'assistant', content: welcomeMsg }]);
+                  }
+                  welcomeMessageSetRef.current = true;
+                }
               }
             } else {
-              setSelectedPreset('custom');
-              setShowCustomSettings(true);
-              setCurrentPersonaName(null);
+              // Se não há tema, usar primeira personalidade como padrão e salvar automaticamente
+              if (predefinedPersonas.length > 0) {
+                const defaultPreset = predefinedPersonas[0];
+                setSelectedPreset(defaultPreset.id);
+                setCurrentPersonaName(defaultPreset.name);
+                const defaultPersona = {
+                  tone: defaultPreset.tone,
+                  specialization: defaultPreset.specialization,
+                  archetype: defaultPreset.archetype,
+                  theme: defaultPreset.theme
+                };
+                setPersona(defaultPersona);
+                
+                // Salvar automaticamente a personalidade padrão (sem causar re-render)
+                fetch('/api/user/persona', {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                  },
+                  body: JSON.stringify(defaultPersona)
+                }).catch(err => console.error('Error saving default persona:', err));
+                
+                if (!welcomeMessageSetRef.current) {
+                  const welcomeMsg = getWelcomeMessage(defaultPreset.theme, locale);
+                  if (welcomeMsg) {
+                    setMessages([{ role: 'assistant', content: welcomeMsg }]);
+                  }
+                  welcomeMessageSetRef.current = true;
+                }
+              }
             }
           }
+        } else {
+          // Se falhar, resetar o ref para tentar novamente
+          personalityLoadedRef.current = false;
         }
       } catch (error) {
         console.error('Error loading personality:', error);
+        personalityLoadedRef.current = false; // Resetar em caso de erro
       }
     };
 
     if (!isCheckingAuth) {
       loadPersonality();
     }
-  }, [isCheckingAuth]);
+  }, [isCheckingAuth, locale]);
 
   const selectPreset = (presetId) => {
-    if (presetId === 'custom') {
-      setSelectedPreset('custom');
-      setShowCustomSettings(true);
-      setCurrentPersonaName(null);
-      return;
-    }
-
     const preset = getPredefinedPersona(presetId);
     if (preset) {
       setSelectedPreset(presetId);
-      setShowCustomSettings(false);
       setCurrentPersonaName(preset.name);
       setPersona({
         tone: preset.tone,
@@ -111,6 +147,12 @@ export default function CoachClient() {
         archetype: preset.archetype,
         theme: preset.theme
       });
+      // Atualizar mensagem inicial apenas se ainda for a primeira mensagem
+      const welcomeMsg = getWelcomeMessage(preset.theme, locale);
+      if (welcomeMsg && messages.length === 1 && messages[0].role === 'assistant') {
+        setMessages([{ role: 'assistant', content: welcomeMsg }]);
+        welcomeMessageSetRef.current = true;
+      }
     }
   };
 
@@ -123,13 +165,19 @@ export default function CoachClient() {
         return;
       }
 
+      // Garantir que theme seja sempre enviado (mesmo que seja null)
+      const personaToSave = {
+        ...persona,
+        theme: persona.theme || null
+      };
+
       const response = await fetch('/api/user/persona', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(persona)
+        body: JSON.stringify(personaToSave)
       });
 
       if (response.ok) {
@@ -139,9 +187,13 @@ export default function CoachClient() {
           const preset = getPredefinedPersona(persona.theme);
           if (preset) {
             setCurrentPersonaName(preset.name);
+            // Atualizar mensagem inicial apenas se ainda for a primeira mensagem
+            const welcomeMsg = getWelcomeMessage(persona.theme, locale);
+            if (welcomeMsg && messages.length === 1 && messages[0].role === 'assistant') {
+              setMessages([{ role: 'assistant', content: welcomeMsg }]);
+              welcomeMessageSetRef.current = true;
+            }
           }
-        } else {
-          setCurrentPersonaName(null);
         }
         alert(t('personalitySaved'));
       } else {
@@ -366,7 +418,11 @@ export default function CoachClient() {
             {messages.map((msg, index) => (
               <div key={index} style={messageStyle(msg.role)}>
                 <div style={{ fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.5rem', opacity: 0.7 }}>
-                  {msg.role === 'user' ? t('you') : t('title')}
+                  {msg.role === 'user' ? t('you') : (currentPersonaName ? (
+                    <>
+                      {predefinedPersonas.find(p => p.id === persona.theme)?.icon || ''} {currentPersonaName}
+                    </>
+                  ) : t('title'))}
                 </div>
                 <div style={{ fontSize: '0.875rem', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
                   {msg.content}
@@ -376,7 +432,11 @@ export default function CoachClient() {
             {isLoading && (
               <div style={messageStyle('assistant')}>
                 <div style={{ fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.5rem', opacity: 0.7 }}>
-                  {t('title')}
+                  {currentPersonaName ? (
+                    <>
+                      {predefinedPersonas.find(p => p.id === persona.theme)?.icon || ''} {currentPersonaName}
+                    </>
+                  ) : t('title')}
                 </div>
                 <div style={{ fontSize: '0.875rem', opacity: 0.7 }}>
                   {t('typing')}
@@ -455,128 +515,58 @@ export default function CoachClient() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#fbbf24', marginBottom: '0.75rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#fbbf24', marginBottom: '0.5rem' }}>
                   {t('presetPersonalities')}
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
+                <select
+                  value={selectedPreset || ''}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      selectPreset(e.target.value);
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '0.5rem',
+                    background: '#1f2937',
+                    border: '1px solid #374151',
+                    color: '#d1d5db',
+                    fontSize: '0.875rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="">{t('selectPersonality') || 'Selecione uma personalidade...'}</option>
                   {predefinedPersonas.map((preset) => (
-                    <button
-                      key={preset.id}
-                      onClick={() => selectPreset(preset.id)}
-                      style={{
-                        padding: '1rem',
-                        borderRadius: '0.5rem',
-                        background: selectedPreset === preset.id ? '#fbbf24' : '#1f2937',
-                        border: selectedPreset === preset.id ? '2px solid #fbbf24' : '1px solid #374151',
-                        color: selectedPreset === preset.id ? '#000' : '#d1d5db',
-                        fontSize: '0.875rem',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.25rem'
-                      }}
-                    >
-                      <div style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{preset.icon}</div>
-                      <div style={{ fontWeight: '600' }}>{preset.name}</div>
-                      <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{preset.description}</div>
-                    </button>
+                    <option key={preset.id} value={preset.id}>
+                      {preset.icon} {preset.name}
+                    </option>
                   ))}
-                  <button
-                    onClick={() => selectPreset('custom')}
-                    style={{
-                      padding: '1rem',
-                      borderRadius: '0.5rem',
-                      background: selectedPreset === 'custom' ? '#fbbf24' : '#1f2937',
-                      border: selectedPreset === 'custom' ? '2px solid #fbbf24' : '1px solid #374151',
-                      color: selectedPreset === 'custom' ? '#000' : '#d1d5db',
-                      fontSize: '0.875rem',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.25rem'
-                    }}
-                  >
-                    <div style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>⚙️</div>
-                    <div style={{ fontWeight: '600' }}>{t('customPersonality')}</div>
-                    <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{t('customPersonalityDesc')}</div>
-                  </button>
-                </div>
+                </select>
               </div>
 
-              {showCustomSettings && (
-                <>
-                  <div style={{ borderTop: '1px solid #374151', paddingTop: '1rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
-                      {t('toneLabel')}
-                    </label>
-                    <select
-                      value={persona.tone}
-                      onChange={(e) => setPersona({ ...persona, tone: e.target.value, theme: null })}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        borderRadius: '0.5rem',
-                        background: '#1f2937',
-                        border: '1px solid #374151',
-                        color: '#d1d5db',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      {Object.entries(t('toneOptions')).map(([key, label]) => (
-                        <option key={key} value={key}>{label}</option>
-                      ))}
-                    </select>
+              {selectedPreset && (() => {
+                const selectedPersona = predefinedPersonas.find(p => p.id === selectedPreset);
+                if (!selectedPersona) return null;
+                return (
+                  <div style={{
+                    padding: '1rem',
+                    borderRadius: '0.5rem',
+                    background: '#1f2937',
+                    border: '1px solid #374151'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                      <span style={{ fontSize: '1.5rem' }}>{selectedPersona.icon}</span>
+                      <h3 style={{ fontSize: '1rem', fontWeight: '600', color: '#fbbf24', margin: 0 }}>
+                        {selectedPersona.name}
+                      </h3>
+                    </div>
+                    <p style={{ fontSize: '0.875rem', color: '#9ca3af', lineHeight: '1.6', margin: 0 }}>
+                      {selectedPersona.description}
+                    </p>
                   </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
-                      {t('specializationLabel')}
-                    </label>
-                    <select
-                      value={persona.specialization}
-                      onChange={(e) => setPersona({ ...persona, specialization: e.target.value, theme: null })}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        borderRadius: '0.5rem',
-                        background: '#1f2937',
-                        border: '1px solid #374151',
-                        color: '#d1d5db',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      {Object.entries(t('specializationOptions')).map(([key, label]) => (
-                        <option key={key} value={key}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', color: '#d1d5db', marginBottom: '0.5rem' }}>
-                      {t('archetypeLabel')}
-                    </label>
-                    <select
-                      value={persona.archetype}
-                      onChange={(e) => setPersona({ ...persona, archetype: e.target.value, theme: null })}
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        borderRadius: '0.5rem',
-                        background: '#1f2937',
-                        border: '1px solid #374151',
-                        color: '#d1d5db',
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      {Object.entries(t('archetypeOptions')).map(([key, label]) => (
-                        <option key={key} value={key}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </>
-              )}
+                );
+              })()}
             </div>
 
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem', borderTop: '1px solid #374151', paddingTop: '1rem' }}>

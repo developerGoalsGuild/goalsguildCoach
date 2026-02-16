@@ -93,6 +93,81 @@ export async function PATCH(request, context) {
            VALUES ($1::text, $2, $3, NOW())`,
           [milestone.quest_id, 'milestone_completed', content]
         );
+
+        // Verificar se todos os milestones estão completos e completar a quest automaticamente
+        const allMilestonesResult = await pool.query(
+          `SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'completed') as completed
+           FROM ${TABLES.milestones}
+           WHERE quest_id::text = $1::text`,
+          [milestone.quest_id]
+        );
+
+        const total = Number(allMilestonesResult.rows[0]?.total || 0);
+        const completed = Number(allMilestonesResult.rows[0]?.completed || 0);
+
+        if (total > 0 && completed === total) {
+          // Verificar se a quest ainda não está completada
+          const questCheck = await pool.query(
+            `SELECT status, parent_goal_id FROM quests WHERE id::text = $1::text AND ${COLS.questsUser} = $2::text`,
+            [milestone.quest_id, userId]
+          );
+
+          if (questCheck.rows.length > 0 && questCheck.rows[0].status !== 'completed') {
+            // Completar quest automaticamente
+            await pool.query(
+              `UPDATE quests SET status = 'completed', completed_at = NOW() WHERE id::text = $1::text AND ${COLS.questsUser} = $2::text`,
+              [milestone.quest_id, userId]
+            );
+
+            // Adicionar entrada no journal
+            await pool.query(
+              `INSERT INTO quest_journal (quest_id, entry_type, content, created_at)
+               VALUES ($1::text, $2, $3, NOW())`,
+              [
+                milestone.quest_id,
+                'quest_completed',
+                JSON.stringify({
+                  type: 'quest_completed',
+                  reason: 'all_milestones_completed',
+                  completed_at: new Date().toISOString(),
+                  auto_completed: true
+                })
+              ]
+            );
+
+            // Salvar na memória do objetivo se houver parent_goal_id
+            if (questCheck.rows[0].parent_goal_id) {
+              try {
+                const questResult = await pool.query(
+                  `SELECT title FROM quests WHERE id::text = $1::text`,
+                  [milestone.quest_id]
+                );
+                const quest = questResult.rows[0];
+
+                const memoryContent = `
+**Quest Completada Automaticamente: ${quest?.title || 'Quest'}**
+
+✅ Status: Completada (todos os milestones foram completados)
+📅 Data: ${new Date().toLocaleDateString('pt-BR')}
+
+---
+
+*Completada automaticamente quando todos os milestones foram finalizados*
+                `.trim();
+
+                await pool.query(
+                  `INSERT INTO objective_memories (objective_id, session_id, memory, created_at)
+                   VALUES ($1::text, $2::text, $3, NOW())`,
+                  [questCheck.rows[0].parent_goal_id, userId, memoryContent]
+                );
+              } catch (e) {
+                console.warn('[Milestone] objective_memories update skipped:', e.message);
+              }
+            }
+
+            console.log('[Milestone] Quest auto-completed:', milestone.quest_id);
+          }
+        }
       } catch (e) {
         console.warn('[Milestone] quest_journal update skipped:', e.message);
       }

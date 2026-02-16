@@ -123,6 +123,7 @@ export default function AnalyticsPage() {
           <MetricCard title={`🎯 ${t('questsCompleted')}`} value={stats.quests_completed || 0} sub={timeRange === 'week' ? t('lastWeek') : t('lastMonth')} />
           <MetricCard title={`⭐ ${t('xpEarned')}`} value={stats.xp_earned || 0} sub={timeRange === 'week' ? t('lastWeek') : t('lastMonth')} />
           <MetricCard title={`✅ ${t('milestones')}`} value={stats.milestones_completed || 0} sub={timeRange === 'week' ? t('lastWeek') : t('lastMonth')} />
+          <MetricCard title={`📋 ${t('tasksCompleted') || 'Tasks'}`} value={stats.tasks_completed || 0} sub={timeRange === 'week' ? t('lastWeek') : t('lastMonth')} />
           <MetricCard title={`📅 ${t('activeDays')}`} value={stats.active_days || 0} sub={timeRange === 'week' ? t('lastWeek') : t('lastMonth')} />
         </section>
 

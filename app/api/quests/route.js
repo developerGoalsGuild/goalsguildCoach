@@ -39,7 +39,13 @@ export async function GET(request) {
       [userId]
     );
 
-    return NextResponse.json({ quests: result.rows });
+    // Mapear completion_percentage para progress para compatibilidade com o frontend
+    const quests = result.rows.map(quest => ({
+      ...quest,
+      progress: Math.round(quest.completion_percentage || 0)
+    }));
+
+    return NextResponse.json({ quests });
   } catch (error) {
     console.error('Quests fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch quests' }, { status: 500 });
