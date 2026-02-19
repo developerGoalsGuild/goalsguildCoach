@@ -64,6 +64,23 @@
     "networkError": "Network error. Please try again.",
     "testUserLabel": "Test user:"
   },
+  "register": {
+    "title": "Create Account",
+    "subtitle": "Create your account to get started",
+    "name": "Name",
+    "namePlaceholder": "Your name",
+    "email": "Email",
+    "password": "Password",
+    "passwordHint": "Minimum 8 characters, including uppercase, lowercase, and number",
+    "submit": "Create Account",
+    "creating": "Creating account...",
+    "hasAccount": "Already have an account?",
+    "login": "Log in",
+    "registerError": "Error creating account",
+    "passwordWeak": "Password must be at least 8 characters and include uppercase, lowercase, and number",
+    "userExists": "This email is already registered",
+    "networkError": "Network error. Please try again."
+  },
   "coach": {
     "title": "Productivity Coach",
     "subtitle": "Chat with your coach to define goals and achieve your targets",
@@ -259,7 +276,19 @@
     "previewTasksLabel": "Tasks",
     "approveAndCreate": "Approve and Create",
     "estimatedHours": "Estimated hours",
-    "recurring": "Recurring"
+    "recurring": "Recurring",
+    "filterStatus": "Status",
+    "filterDifficulty": "Difficulty",
+    "filterAll": "All",
+    "filterActive": "Active",
+    "filterCompleted": "Completed",
+    "filterCancelled": "Cancelled",
+    "filterEasy": "Easy",
+    "filterMedium": "Medium",
+    "filterHard": "Hard",
+    "filterEpic": "Epic",
+    "filterObjective": "Objective",
+    "filterNoObjective": "No objective"
   },
   "tasks": {
     "title": "My Tasks",
@@ -474,10 +503,16 @@
     "card_xp_2500_description": "Earn 2500 XP",
     "card_xp_5000_name": "Legendary",
     "card_xp_5000_description": "Earn 5000 XP",
+    "card_xp_10000_name": "Level 10",
+    "card_xp_10000_description": "Reach level 10",
     "card_xp_50000_name": "XP Legend",
     "card_xp_50000_description": "Earn 50,000 XP",
     "card_level_10_name": "Level 10",
     "card_level_10_description": "Reach level 10",
+    "card_level_10000_name": "Level 10",
+    "card_level_10000_description": "Reach level 10",
+    "card_nivel_10_name": "Level 10",
+    "card_nivel_10_description": "Reach level 10",
     "card_streak_1_name": "First Day",
     "card_streak_1_description": "Reach your first streak",
     "card_streak_3_name": "On Fire",
@@ -493,7 +528,9 @@
     "card_objectives_5_name": "Focused",
     "card_objectives_5_description": "Create 5 NLP objectives",
     "card_objectives_10_name": "Dedicated",
-    "card_objectives_10_description": "Create 10 NLP objectives"
+    "card_objectives_10_description": "Create 10 NLP objectives",
+    "card_objectives_50_name": "Visionary",
+    "card_objectives_50_description": "Complete 50 objectives"
   },
   "insights": {
     "title": "Insights",

@@ -89,7 +89,9 @@ export default function AchievementsPage() {
   const renderAchievementCard = (achievement) => {
     const progressPercentage = (achievement.progress / achievement.maxProgress) * 100;
     const isUnlocked = achievement.unlocked;
-    const cardKey = `card_${achievement.category}_${achievement.requirement_value}`;
+    const category = String(achievement.category || '').toLowerCase();
+    const reqVal = Number(achievement.requirement_value);
+    const cardKey = `card_${category}_${reqVal}`;
     const nameKey = `${cardKey}_name`;
     const descKey = `${cardKey}_description`;
     const nameTrans = t(nameKey);
@@ -181,7 +183,15 @@ export default function AchievementsPage() {
             </div>
             {grouped && (
               <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-                🎯 {grouped.quests?.filter(a => a.unlocked).length ?? 0}/{grouped.quests?.length ?? 0} • ⭐ {grouped.xp?.filter(a => a.unlocked).length ?? 0}/{grouped.xp?.length ?? 0} • 🔥 {grouped.streak?.filter(a => a.unlocked).length ?? 0}/{grouped.streak?.length ?? 0}
+                🎯 {grouped.quests?.filter(a => a.unlocked).length ?? 0}/{grouped.quests?.length ?? 0}
+                {' • '}⭐ {grouped.xp?.filter(a => a.unlocked).length ?? 0}/{grouped.xp?.length ?? 0}
+                {' • '}🔥 {grouped.streak?.filter(a => a.unlocked).length ?? 0}/{grouped.streak?.length ?? 0}
+                {' • '}📋 {grouped.objectives?.filter(a => a.unlocked).length ?? 0}/{grouped.objectives?.length ?? 0}
+                {grouped.level?.length > 0 && (
+                  <>
+                    {' • '}👑 {grouped.level?.filter(a => a.unlocked).length ?? 0}/{grouped.level?.length ?? 0}
+                  </>
+                )}
               </span>
             )}
           </div>
@@ -251,7 +261,7 @@ export default function AchievementsPage() {
         {grouped && grouped.objectives && grouped.objectives.length > 0 && (
           <div style={{ marginBottom: '2rem' }}>
             <h2 style={{ fontSize: '1.25rem', color: '#d1d5db', marginBottom: '1rem' }}>
-              🎯 {t('sectionObjectives')}
+              📋 {t('sectionObjectives')}
             </h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
               {grouped.objectives.map(achievement => renderAchievementCard(achievement))}

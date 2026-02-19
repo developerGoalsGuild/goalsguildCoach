@@ -13,13 +13,18 @@ export default function QuestsPage() {
   const t = useTranslations('quests');
   const tc = useTranslations('common');
   const [quests, setQuests] = useState([]);
+  const [objectives, setObjectives] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [difficultyFilter, setDifficultyFilter] = useState('all');
+  const [objectiveFilter, setObjectiveFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [modalQuest, setModalQuest] = useState(null);
 
   useEffect(() => {
     loadQuests();
+    loadObjectives();
   }, []);
 
   const loadQuests = async () => {
@@ -33,6 +38,18 @@ export default function QuestsPage() {
       console.error('Failed to load quests:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadObjectives = async () => {
+    try {
+      const res = await authFetch('/api/goals');
+      if (res.ok) {
+        const data = await res.json();
+        setObjectives(data.goals || []);
+      }
+    } catch (error) {
+      console.error('Failed to load objectives:', error);
     }
   };
 
@@ -51,7 +68,25 @@ export default function QuestsPage() {
 
   const filteredQuests = quests.filter((quest) => {
     const q = search.toLowerCase();
-    return quest.title?.toLowerCase().includes(q) || quest.description?.toLowerCase().includes(q);
+    const matchesSearch = quest.title?.toLowerCase().includes(q) || quest.description?.toLowerCase().includes(q);
+    
+    let matchesStatus = true;
+    if (statusFilter === 'active') {
+      matchesStatus = quest.status !== 'completed' && quest.status !== 'cancelled';
+    } else if (statusFilter !== 'all') {
+      matchesStatus = quest.status === statusFilter;
+    }
+    
+    const matchesDifficulty = difficultyFilter === 'all' || quest.difficulty === difficultyFilter;
+    
+    let matchesObjective = true;
+    if (objectiveFilter === 'none') {
+      matchesObjective = !quest.parent_goal_id;
+    } else if (objectiveFilter !== 'all') {
+      matchesObjective = String(quest.parent_goal_id) === String(objectiveFilter);
+    }
+    
+    return matchesSearch && matchesStatus && matchesDifficulty && matchesObjective;
   });
 
   const activeQuests = filteredQuests.filter((q) => q.status !== 'completed');
@@ -91,6 +126,85 @@ export default function QuestsPage() {
           </div>
           <div className="glass-card" style={{ padding: '1rem' }}>
             <SearchBar value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('searchPlaceholder')} />
+          </div>
+        </section>
+
+        <section className="glass-card" style={{ padding: '1rem', marginBottom: '0.8rem' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-soft)', marginRight: '0.5rem' }}>
+                {t('filterStatus')}:
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  background: 'var(--bg-soft)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '0.375rem',
+                  color: 'var(--text)',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="all">{t('filterAll')}</option>
+                <option value="active">{t('filterActive')}</option>
+                <option value="completed">{t('filterCompleted')}</option>
+                <option value="cancelled">{t('filterCancelled')}</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-soft)', marginRight: '0.5rem' }}>
+                {t('filterDifficulty')}:
+              </label>
+              <select
+                value={difficultyFilter}
+                onChange={(e) => setDifficultyFilter(e.target.value)}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  background: 'var(--bg-soft)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '0.375rem',
+                  color: 'var(--text)',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="all">{t('filterAll')}</option>
+                <option value="easy">{t('filterEasy')}</option>
+                <option value="medium">{t('filterMedium')}</option>
+                <option value="hard">{t('filterHard')}</option>
+                <option value="epic">{t('filterEpic')}</option>
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-soft)', marginRight: '0.5rem' }}>
+                {t('filterObjective')}:
+              </label>
+              <select
+                value={objectiveFilter}
+                onChange={(e) => setObjectiveFilter(e.target.value)}
+                style={{
+                  padding: '0.5rem 0.75rem',
+                  background: 'var(--bg-soft)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '0.375rem',
+                  color: 'var(--text)',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  minWidth: '200px'
+                }}
+              >
+                <option value="all">{t('filterAll')}</option>
+                <option value="none">{t('filterNoObjective')}</option>
+                {objectives.map((obj) => (
+                  <option key={obj.id} value={obj.id}>
+                    {obj.title}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </section>
 

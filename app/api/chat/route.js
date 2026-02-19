@@ -9,7 +9,7 @@ import { checkMessagePolicy } from '../../lib/guardrails';
 import nlpQuestionLLM from '../../lib/nlp-llm-questions';
 import { createQuestFromObjective } from '../../lib/create-quest-from-objective';
 import { getUserFromToken } from '../../lib/auth';
-import { getCoachResponse } from '../../lib/openai';
+import { getCoachResponse, rewriteWithPersona } from '../../lib/openai';
 
 /**
  * Armazena objetivos pendentes de aprovação
@@ -522,7 +522,21 @@ export async function POST(request) {
 
     // Fallback sem OpenAI
     console.log('[Chat] Usando fallback sem OpenAI...');
-    const fallbackMessage = await processWithoutOpenAI(message, history, pool, locale);
+    let fallbackMessage = await processWithoutOpenAI(message, history, pool, locale);
+
+    // Tentar reescrever com persona se OpenAI estiver disponível
+    if (hasOpenAI) {
+      try {
+        const rewritten = await rewriteWithPersona(fallbackMessage, persona, locale);
+        if (rewritten && rewritten !== fallbackMessage) {
+          console.log('[Chat] Fallback message rewritten with persona');
+          fallbackMessage = rewritten;
+        }
+      } catch (rewriteError) {
+        console.error('[Chat] Error rewriting fallback with persona:', rewriteError);
+        // Continuar com mensagem original se reescrita falhar
+      }
+    }
 
     await pool.query(
       'INSERT INTO messages (session_id, role, content) VALUES ($1, $2, $3)',

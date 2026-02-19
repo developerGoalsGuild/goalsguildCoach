@@ -202,7 +202,7 @@ export async function getCoachResponse(messages, persona, locale = 'pt-BR') {
 
   const systemPrompt = getSystemPrompt(persona, locale) + questContext;
   
-  const response = await openai.chat.completions.create({
+  const completion = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: systemPrompt },
@@ -212,7 +212,21 @@ export async function getCoachResponse(messages, persona, locale = 'pt-BR') {
     max_tokens: 500,
   });
 
-  return response.choices[0]?.message?.content || 'I apologize, but I couldn\'t generate a response.';
+  let response = completion.choices[0]?.message?.content || 'I apologize, but I couldn\'t generate a response.';
+
+  // Reescrever usando a persona para garantir consistência
+  try {
+    const rewritten = await rewriteWithPersona(response, persona, locale);
+    if (rewritten && rewritten !== response) {
+      console.log('[getCoachResponse] Response rewritten with persona');
+      response = rewritten;
+    }
+  } catch (rewriteError) {
+    console.error('[getCoachResponse] Error rewriting with persona:', rewriteError);
+    // Continuar com resposta original se reescrita falhar
+  }
+
+  return response;
 }
 
 async function fetchActiveQuest() {
@@ -226,6 +240,90 @@ async function fetchActiveQuest() {
   } catch (error) {
     console.error('Failed to fetch active quest:', error);
     return null;
+  }
+}
+
+/**
+ * Reescreve qualquer texto (pergunta ou resposta) usando a persona via LLM
+ * Garante que tudo siga o tom, especialização e arquétipo da persona
+ */
+export async function rewriteWithPersona(text, persona, locale = 'pt-BR') {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey || !apiKey.length || apiKey === 'your-openai-api-key') {
+    return text; // Retorna original se não tiver OpenAI
+  }
+
+  const isEnglish = locale === 'en-US';
+  const languageRule = isEnglish
+    ? '**CRITICAL — LANGUAGE:** You MUST respond ONLY in English.'
+    : '**CRÍTICO — IDIOMA:** Você DEVE responder SOMENTE em português (Brasil).';
+
+  const toneInstructions = {
+    aggressive: isEnglish ? 'Be direct and challenging. Push hard. Call out excuses.' : 'Seja direto e desafiador. Pressione o usuário. Identifique desculpas.',
+    gentle: isEnglish ? 'Be encouraging and supportive. Focus on progress, not perfection.' : 'Seja encorajador e solidário. Foque no progresso, não na perfeição.',
+    neutral: isEnglish ? 'Be balanced and objective. State facts without strong emotion.' : 'Seja equilibrado e objetivo. Apresente fatos sem emoção forte.',
+    sharp: isEnglish ? 'Be extremely direct. Cut through bullshit immediately. No filler.' : 'Seja extremamente direto. Corte direto ao ponto. Sem rodeios.',
+    warm: isEnglish ? 'Be conversational and empathetic. Build connection first.' : 'Seja conversacional e empático. Construa conexão primeiro.'
+  };
+
+  const specializationContext = {
+    productivity: isEnglish ? 'Focus on task completion, systems, and execution.' : 'Foque em conclusão de tarefas, sistemas e execução.',
+    fitness: isEnglish ? 'Focus on physical goals, training consistency, and health.' : 'Foque em objetivos físicos, consistência de treino e saúde.',
+    career: isEnglish ? 'Focus on professional growth, skills, and career progression.' : 'Foque em crescimento profissional, habilidades e progressão de carreira.',
+    general: isEnglish ? 'Adapt to whatever topic the user brings up.' : 'Adapte-se a qualquer tópico que o usuário traga.'
+  };
+
+  const archetypeStyle = {
+    mentor: isEnglish ? 'Share wisdom. Guide with experience. Teach principles.' : 'Compartilhe sabedoria. Guie com experiência. Ensine princípios.',
+    friend: isEnglish ? 'Be casual. Use humor. Keep it light but real.' : 'Seja casual. Use humor. Mantenha leve mas real.',
+    'drill-instructor': isEnglish ? 'Demand results. Accept no excuses. Push through resistance.' : 'Exija resultados. Não aceite desculpas. Empurre através da resistência.',
+    therapist: isEnglish ? 'Explore underlying patterns. Ask reflective questions. Build insight.' : 'Explore padrões subjacentes. Faça perguntas reflexivas. Construa insights.'
+  };
+
+  const themePrompt = persona.theme ? getThemePrompt(persona.theme) : '';
+
+  const rewritePrompt = `${languageRule}
+
+You are the GoalsGuild Coach. Rewrite the following text (question or response) to match your persona exactly.
+
+**Your Persona:**
+**Tone:** ${toneInstructions[persona.tone] || toneInstructions.neutral}
+**Specialization:** ${specializationContext[persona.specialization] || specializationContext.general}
+**Archetype:** ${archetypeStyle[persona.archetype] || archetypeStyle.mentor}
+${themePrompt ? `\n**Your Character:**\n${themePrompt}\n` : ''}
+
+**Original text to rewrite:**
+${text}
+
+**Instructions:**
+- Keep the same meaning and information
+- Adapt the tone, style, and wording to match your persona exactly
+- If it's a question, make it sound natural in your persona's voice
+- If it's a response, ensure it reflects your archetype and tone
+- Maintain the same language (${isEnglish ? 'English' : 'Portuguese'})
+- Do NOT change the structure if it's a formatted response (e.g., keep markdown, emojis, etc.)
+- Only rewrite the wording to match your persona
+
+**Rewritten text:**`;
+
+  try {
+    const openai = new OpenAI({ apiKey });
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: rewritePrompt },
+        { role: 'user', content: 'Rewrite this text to match your persona:' }
+      ],
+      temperature: persona.tone === 'warm' || persona.tone === 'gentle' ? 0.8 : 0.6,
+      max_tokens: 600,
+    });
+
+    const rewritten = response.choices[0]?.message?.content?.trim();
+    return rewritten || text; // Fallback para original se falhar
+  } catch (error) {
+    console.error('[rewriteWithPersona] Error:', error);
+    return text; // Fallback para original se falhar
   }
 }
 

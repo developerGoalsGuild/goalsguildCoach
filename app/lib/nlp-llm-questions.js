@@ -5,6 +5,7 @@
 
 import OpenAI from 'openai';
 import { getThemePrompt } from './personas';
+import { rewriteWithPersona } from './openai';
 
 /**
  * Builds NLP questioning prompt with persona and locale (language of responses)
@@ -233,8 +234,20 @@ export async function askNLPQuestionViaLLM(userMessage, history = [], persona = 
       max_tokens: 500
     });
 
-    const response = completion.choices[0].message.content;
+    let response = completion.choices[0].message.content;
     console.log('[NLP LLM] Response received:', response.substring(0, 100));
+
+    // Reescrever usando a persona para garantir que siga o tom e estilo
+    try {
+      const rewritten = await rewriteWithPersona(response, persona, locale);
+      if (rewritten && rewritten !== response) {
+        console.log('[NLP LLM] Response rewritten with persona');
+        response = rewritten;
+      }
+    } catch (rewriteError) {
+      console.error('[NLP LLM] Error rewriting with persona:', rewriteError);
+      // Continuar com resposta original se reescrita falhar
+    }
 
     return response;
 
