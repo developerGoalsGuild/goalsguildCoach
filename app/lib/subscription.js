@@ -136,10 +136,13 @@ export async function checkSubscriptionLimit(userId, feature, currentUsage = und
     if (current === undefined) current = await getQuestsManualCount(userId);
   } else if (feature === 'quests') {
     limit = subscription.max_quests;
+    if (current === undefined) current = await getUserQuestCount(userId);
   } else if (feature === 'tasks') {
     limit = subscription.max_tasks_per_quest;
+    // currentUsage must be passed: task count for the quest being added to
   } else if (feature === 'messages') {
     limit = subscription.max_daily_messages;
+    if (current === undefined) current = await getDailyMessageCount(userId);
   } else {
     return { allowed: true, limit: null, remaining: null };
   }

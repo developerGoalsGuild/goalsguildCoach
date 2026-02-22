@@ -65,6 +65,10 @@ function generateMilestones(objective) {
 export async function createQuestFromObjective(sessionId, objectiveId) {
   const pool = getPool();
   try {
+    const questsTotalCheck = await checkSubscriptionLimit(sessionId, 'quests');
+    if (!questsTotalCheck.allowed) {
+      return { success: false, error: questsTotalCheck.message || 'Quest limit reached. Upgrade your plan for more.' };
+    }
     const limitCheck = await checkSubscriptionLimit(sessionId, 'quests_ai');
     if (!limitCheck.allowed) {
       return { success: false, error: limitCheck.message || 'Quest AI limit reached for this month.' };

@@ -32,6 +32,10 @@ export default function ProfilePage() {
     context_for_coach: '',
   });
   const [plan, setPlan] = useState(null);
+  const [canManageBilling, setCanManageBilling] = useState(false);
+  const [plans, setPlans] = useState([]);
+  const [checkoutLoading, setCheckoutLoading] = useState(null);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -41,8 +45,9 @@ export default function ProfilePage() {
     Promise.all([
       authFetch('/api/user/profile').then((res) => (res.status === 401 ? null : res.json())),
       authFetch('/api/subscription/current').then((res) => (res.status === 401 ? null : res.json())),
+      authFetch('/api/subscription/plans').then((res) => (res.ok ? res.json() : { plans: [] })),
     ])
-      .then(([profileData, subData]) => {
+      .then(([profileData, subData, plansData]) => {
         if (!profileData || profileData.error) {
           setError(profileData?.error || 'Failed to load profile');
           setLoading(false);
@@ -65,6 +70,8 @@ export default function ProfilePage() {
               }
             : { plan_name: 'free', display_name: 'Free', status: 'active', current_period_end: null }
         );
+        setCanManageBilling(!!subData?.can_manage_billing);
+        setPlans(plansData?.plans ?? []);
         setLoading(false);
       })
       .catch(() => {
@@ -130,6 +137,46 @@ export default function ProfilePage() {
     }
   };
 
+  const handleUpgrade = async (planId) => {
+    setCheckoutLoading(planId);
+    setError('');
+    try {
+      const res = await authFetch('/api/subscription/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || 'Checkout failed');
+        return;
+      }
+      if (data.url) window.location.href = data.url;
+    } catch (e) {
+      setError(e?.message || 'Something went wrong');
+    } finally {
+      setCheckoutLoading(null);
+    }
+  };
+
+  const handleManageBilling = async () => {
+    setPortalLoading(true);
+    setError('');
+    try {
+      const res = await authFetch('/api/subscription/portal', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || 'Could not open billing portal');
+        return;
+      }
+      if (data.url) window.location.href = data.url;
+    } catch (e) {
+      setError(e?.message || 'Something went wrong');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
   if (!isAuthenticated()) return null;
 
   return (
@@ -172,6 +219,74 @@ export default function ProfilePage() {
                     {new Date(plan.current_period_end).toLocaleDateString()}
                   </span>
                 )}
+              </div>
+            </div>
+          )}
+
+          {plans.length > 0 && (
+            <div
+              style={{
+                marginBottom: '1.5rem',
+                padding: '1rem 1.25rem',
+                background: 'rgba(15, 23, 42, 0.4)',
+                border: '1px solid var(--border)',
+                borderRadius: '12px',
+              }}
+            >
+              <h2 style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-soft)', marginBottom: '0.25rem' }}>
+                {t('changePlan')}
+              </h2>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-soft)', marginBottom: '1rem', marginTop: 0 }}>
+                {t('changePlanSubtitle')}
+              </p>
+              {canManageBilling && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleManageBilling}
+                    disabled={portalLoading}
+                  >
+                    {portalLoading ? '...' : t('manageBilling')}
+                  </button>
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {plans.map((p) => {
+                  const isCurrent = plan && (p.name === plan.plan_name || p.display_name === (plan.display_name || plan.plan_name));
+                  const isPaid = p.price_monthly > 0;
+                  return (
+                    <div
+                      key={p.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '0.5rem',
+                        padding: '0.5rem 0',
+                        borderBottom: '1px solid var(--border)',
+                      }}
+                    >
+                      <span style={{ fontSize: '0.875rem', color: 'var(--text)' }}>
+                        {p.display_name || p.name} — {p.price_monthly === 0 ? '$0' : `$${p.price_monthly}`}{t('perMonth')}
+                      </span>
+                      {isCurrent ? (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-soft)', fontWeight: '600' }}>{t('currentPlan')}</span>
+                      ) : isPaid ? (
+                        <button
+                          type="button"
+                          className="btn btn-dark"
+                          style={{ fontSize: '0.8rem', padding: '0.35rem 0.6rem' }}
+                          onClick={() => handleUpgrade(p.id)}
+                          disabled={!!checkoutLoading}
+                        >
+                          {checkoutLoading === p.id ? '...' : t('upgrade')}
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

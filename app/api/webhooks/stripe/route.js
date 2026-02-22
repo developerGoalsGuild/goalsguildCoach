@@ -98,7 +98,24 @@ export async function POST(request) {
         const subscriptionId = stripeSub.id;
         const periodEnd = new Date(stripeSub.current_period_end * 1000);
         const cancelAtPeriodEnd = !!stripeSub.cancel_at_period_end;
+        const priceId = stripeSub.items?.data?.[0]?.price?.id;
 
+        if (priceId) {
+          const planResult = await pool.query(
+            `SELECT id FROM subscription_plans WHERE stripe_price_id_monthly = $1 LIMIT 1`,
+            [priceId]
+          );
+          if (planResult.rows.length > 0) {
+            const planId = planResult.rows[0].id;
+            await pool.query(
+              `UPDATE user_subscriptions
+               SET plan_id = $1, current_period_end = $2, cancel_at_period_end = $3, updated_at = CURRENT_TIMESTAMP
+               WHERE stripe_subscription_id = $4`,
+              [planId, periodEnd, cancelAtPeriodEnd, subscriptionId]
+            );
+            break;
+          }
+        }
         await pool.query(
           `UPDATE user_subscriptions
            SET current_period_end = $1, cancel_at_period_end = $2, updated_at = CURRENT_TIMESTAMP

@@ -21,7 +21,11 @@ export async function POST(request) {
     const result = await createQuestFromObjective(sessionId, objectiveId);
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 500 });
+      const isLimitError = /limit|upgrade your plan/i.test(result.error || '');
+      return NextResponse.json(
+        { error: result.error },
+        { status: isLimitError ? 403 : 500 }
+      );
     }
 
     return NextResponse.json({

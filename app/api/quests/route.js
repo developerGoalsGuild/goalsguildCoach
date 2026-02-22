@@ -84,6 +84,13 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Target date is required (YYYY-MM-DD)' }, { status: 400 });
     }
 
+    const questsTotalLimit = await checkSubscriptionLimit(decoded.userId, 'quests');
+    if (!questsTotalLimit.allowed) {
+      return NextResponse.json(
+        { error: questsTotalLimit.message || 'You have reached your quest limit. Upgrade your plan for more.' },
+        { status: 403 }
+      );
+    }
     const manualLimit = await checkSubscriptionLimit(decoded.userId, 'quests_manual');
     if (!manualLimit.allowed) {
       return NextResponse.json(

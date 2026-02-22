@@ -20,6 +20,13 @@ export async function POST(request) {
   const sessionId = user.userId;
   const pool = getPool();
 
+  const questsTotalLimit = await checkSubscriptionLimit(sessionId, 'quests');
+  if (!questsTotalLimit.allowed) {
+    return NextResponse.json(
+      { error: questsTotalLimit.message || 'You have reached your quest limit. Upgrade your plan for more.' },
+      { status: 403 }
+    );
+  }
   const questsAiLimit = await checkSubscriptionLimit(sessionId, 'quests_ai');
   if (!questsAiLimit.allowed) {
     return NextResponse.json(

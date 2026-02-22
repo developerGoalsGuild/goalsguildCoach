@@ -10,7 +10,7 @@ import nlpQuestionLLM from '../../lib/nlp-llm-questions';
 import { createQuestFromObjective } from '../../lib/create-quest-from-objective';
 import { getUserFromToken } from '../../lib/auth';
 import { getCoachResponse, rewriteWithPersona } from '../../lib/openai';
-import { checkSubscriptionLimit } from '../../lib/subscription.js';
+import { checkSubscriptionLimit, incrementDailyMessageUsage } from '../../lib/subscription.js';
 
 /**
  * Armazena objetivos pendentes de aprovação
@@ -164,45 +164,20 @@ async function saveNLPOjective(pool, sessionId, objective) {
 
     console.log('[NLP Save] Salvando objetivo NLP:', title);
 
+    const goalsCols = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'goals' AND column_name IN ('user_id', 'session_id')`
+    );
+    const hasUserId = goalsCols.rows.some((r) => r.column_name === 'user_id');
+    const insertCols = ['session_id', 'title', 'description', 'statement', 'category', 'target_date', 'is_nlp_complete', 'nlp_criteria_positive', 'nlp_criteria_sensory', 'nlp_criteria_compelling', 'nlp_criteria_ecology', 'nlp_criteria_self_initiated', 'nlp_criteria_context', 'nlp_criteria_resources', 'nlp_criteria_evidence', 'status', 'created_by_ai'];
+    const insertVals = [sessionId, title, objective.description || objective.statement, objective.statement, objective.category, targetDate, true, objective.nlp_criteria_positive, objective.nlp_criteria_sensory, objective.nlp_criteria_compelling, objective.nlp_criteria_ecology, objective.nlp_criteria_self_initiated, objective.nlp_criteria_context, objective.nlp_criteria_resources, objective.nlp_criteria_evidence, 'active', true];
+    if (hasUserId) {
+      insertCols.unshift('user_id');
+      insertVals.unshift(sessionId);
+    }
+    const placeholders = insertVals.map((_, i) => `$${i + 1}`).join(', ');
     const result = await pool.query(
-      `INSERT INTO goals (
-        session_id,
-        title,
-        description,
-        statement,
-        category,
-        target_date,
-        is_nlp_complete,
-        nlp_criteria_positive,
-        nlp_criteria_sensory,
-        nlp_criteria_compelling,
-        nlp_criteria_ecology,
-        nlp_criteria_self_initiated,
-        nlp_criteria_context,
-        nlp_criteria_resources,
-        nlp_criteria_evidence,
-        status,
-        created_by_ai
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, true)
-      RETURNING id`,
-      [
-        sessionId,
-        title,
-        objective.description || objective.statement,
-        objective.statement,
-        objective.category,
-        targetDate,
-        true,
-        objective.nlp_criteria_positive,
-        objective.nlp_criteria_sensory,
-        objective.nlp_criteria_compelling,
-        objective.nlp_criteria_ecology,
-        objective.nlp_criteria_self_initiated,
-        objective.nlp_criteria_context,
-        objective.nlp_criteria_resources,
-        objective.nlp_criteria_evidence,
-        'active'
-      ]
+      `INSERT INTO goals (${insertCols.join(', ')}) VALUES (${placeholders}) RETURNING id`,
+      insertVals
     );
 
     const goalId = result.rows[0].id;
@@ -256,6 +231,14 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
+    const messagesLimit = await checkSubscriptionLimit(sessionId, 'messages');
+    if (!messagesLimit.allowed) {
+      return NextResponse.json(
+        { error: messagesLimit.message || "You've reached your daily message limit. Upgrade your plan for more." },
+        { status: 403 }
+      );
+    }
+
     const pool = getPool();
 
     // Ensure persona columns exist
@@ -304,6 +287,7 @@ export async function POST(request) {
         'INSERT INTO messages (session_id, role, content) VALUES ($1, $2, $3)',
         [sessionId, 'user', message]
       );
+      await incrementDailyMessageUsage(sessionId);
 
       await pool.query(
         'INSERT INTO messages (session_id, role, content) VALUES ($1, $2, $3)',
@@ -323,6 +307,7 @@ export async function POST(request) {
       'INSERT INTO messages (session_id, role, content) VALUES ($1, $2, $3)',
       [sessionId, 'user', message]
     );
+    await incrementDailyMessageUsage(sessionId);
 
     // Buscar histórico do banco
     const historyResult = await pool.query(

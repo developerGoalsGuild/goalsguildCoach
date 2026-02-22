@@ -26,6 +26,7 @@ export async function GET(request) {
         current_period_end: subscription.current_period_end,
         cancel_at_period_end: subscription.cancel_at_period_end,
       },
+      can_manage_billing: !!subscription.stripe_customer_id,
       usage: usageStats,
     });
   } catch (error) {

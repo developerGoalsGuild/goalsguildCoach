@@ -184,6 +184,20 @@ export async function updateSubscription(subscriptionId, newPriceId) {
 }
 
 /**
+ * Create a Stripe Customer Billing Portal session (manage subscription, payment method, change plan)
+ * @param {string} customerId - Stripe customer ID
+ * @param {string} returnUrl - URL to redirect after leaving the portal
+ * @returns {Promise<Stripe.BillingPortal.Session>}
+ */
+export async function createBillingPortalSession(customerId, returnUrl) {
+  const session = await getStripe().billingPortal.sessions.create({
+    customer: customerId,
+    return_url: returnUrl,
+  });
+  return session;
+}
+
+/**
  * Verify Stripe webhook signature
  * @param {string} payload - Raw request body
  * @param {string} signature - Stripe signature header

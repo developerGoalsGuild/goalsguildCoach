@@ -202,46 +202,20 @@ export async function saveNLPOjective(pool, sessionId, objective) {
   try {
     console.log('[NLP Save] Salvando objetivo NLP:', objective.title);
 
-    // Salvar na tabela goals (unificada com campos NLP); created_by_ai = true (from chat/AI)
+    const goalsCols = await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'goals' AND column_name IN ('user_id', 'session_id')`
+    );
+    const hasUserId = goalsCols.rows.some((r) => r.column_name === 'user_id');
+    const insertCols = ['session_id', 'title', 'description', 'statement', 'category', 'target_date', 'is_nlp_complete', 'nlp_criteria_positive', 'nlp_criteria_sensory', 'nlp_criteria_compelling', 'nlp_criteria_ecology', 'nlp_criteria_self_initiated', 'nlp_criteria_context', 'nlp_criteria_resources', 'nlp_criteria_evidence', 'status', 'created_by_ai'];
+    const insertVals = [sessionId, objective.title, objective.description, objective.statement, objective.category, objective.target_date, true, objective.nlp_criteria_positive, objective.nlp_criteria_sensory, objective.nlp_criteria_compelling, objective.nlp_criteria_ecology, objective.nlp_criteria_self_initiated, objective.nlp_criteria_context, objective.nlp_criteria_resources, objective.nlp_criteria_evidence, 'active', true];
+    if (hasUserId) {
+      insertCols.unshift('user_id');
+      insertVals.unshift(sessionId);
+    }
+    const placeholders = insertVals.map((_, i) => `$${i + 1}`).join(', ');
     const result = await pool.query(
-      `INSERT INTO goals (
-        session_id,
-        title,
-        description,
-        statement,
-        category,
-        target_date,
-        is_nlp_complete,
-        nlp_criteria_positive,
-        nlp_criteria_sensory,
-        nlp_criteria_compelling,
-        nlp_criteria_ecology,
-        nlp_criteria_self_initiated,
-        nlp_criteria_context,
-        nlp_criteria_resources,
-        nlp_criteria_evidence,
-        status,
-        created_by_ai
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, true)
-      RETURNING id`,
-      [
-        sessionId,
-        objective.title,
-        objective.description,
-        objective.statement,
-        objective.category,
-        objective.target_date,
-        true, // is_nlp_complete
-        objective.nlp_criteria_positive,
-        objective.nlp_criteria_sensory,
-        objective.nlp_criteria_compelling,
-        objective.nlp_criteria_ecology,
-        objective.nlp_criteria_self_initiated,
-        objective.nlp_criteria_context,
-        objective.nlp_criteria_resources,
-        objective.nlp_criteria_evidence,
-        'active'
-      ]
+      `INSERT INTO goals (${insertCols.join(', ')}) VALUES (${placeholders}) RETURNING id`,
+      insertVals
     );
 
     const goalId = result.rows[0].id;
