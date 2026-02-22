@@ -1,0 +1,11 @@
+{
+  "results": [
+    { "persona": "Wellness Coach", "locale": "pt-BR", "reply": "Ótimo! Ganhar mais músculos é um objetivo que vale a pena. Para trabalharmos isso: em quanto tempo você imagina realizando? Tem alguma data em mente?", "error": null },
+    { "persona": "Wellness Coach", "locale": "en-US", "reply": "Great! Gaining more muscle is a goal worth pursuing. To work on this as a quest: how long do you imagine it taking? Do you have a timeline in mind?", "error": null },
+    { "persona": "Executive Coach", "locale": "pt-BR", "reply": "Por favor, compartilhe o texto que você gostaria que eu reescrevesse para que eu possa ajustá-lo.", "error": null },
+    { "persona": "Executive Coach", "locale": "en-US", "reply": "Please share the text you would like me to rephrase so I can help you.", "error": null },
+    { "persona": "Fitness Trainer", "locale": "en-US", "reply": "Ótimo! Ganhar músculos é um ótimo objetivo. Em quanto tempo você quer realizar isso?", "error": null },
+    { "persona": "Guild Master", "locale": "pt-BR", "reply": "", "error": null }
+  ],
+  "runAt": "2025-01-01T00:00:00.000Z"
+}

@@ -167,12 +167,14 @@ Exemplo: "Torne o coach mais agressivo e focado em carreira"
 
 ## 📊 Monetização (Plano)
 
-### Freemium
-- **Grátis**: 1 quest, 10 tasks, 20 mensagens/dia
-- **Premium**: R$ 29,90/mês - Quests/tasks ilimitadas + AI ilimitado
+All prices in USD.
+
+- **Free**: $0 — 2 objectives by AI, 2 quests by AI (per month), 10 quests manual, unlimited tasks
+- **Starter**: $4.99/mo or $49.99/yr — 5 objectives by AI/mo, 10 quests by AI/mo, unlimited manual quests/tasks
+- **Premium**: $9.99/mo or $99.99/yr — 15 objectives by AI/mo, 30 quests by AI/mo, unlimited manual, advanced analytics, data export, priority support
 
 ### Guild Quests (Futuro)
-- **Social**: R$ 19/mês - Quests compartilhadas + chat em tempo real
+- **Social**: Quests compartilhadas + chat em tempo real
 
 ### Marketplace (Futuro)
 - **Templates**: R$ 19-49 - Quests prontas (fitness, carreira, etc)

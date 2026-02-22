@@ -8,16 +8,17 @@ This document outlines the subscription plans, database schema, and implementati
 
 ## 💎 Subscription Tiers
 
+All prices in **USD**.
+
 ### Free Plan
-**Price:** R$ 0,00/month
+**Price:** $0/month
 
 **Limits:**
-- ✅ 1 active quest
-- ✅ 10 tasks per quest
-- ✅ 20 AI messages per day
-- ✅ Basic analytics
-- ✅ 1 persona customization
-- ✅ Basic streak tracking
+- ✅ 2 objectives created by AI (total or per month)
+- ✅ 2 quests created by AI (per month)
+- ✅ 10 quests created manually
+- ✅ Unlimited tasks
+- ✅ Basic analytics, 1 persona
 
 **Features:**
 - Quest and task management
@@ -27,39 +28,38 @@ This document outlines the subscription plans, database schema, and implementati
 
 ---
 
-### Premium Plan
-**Price:** R$ 29,90/month (or $9.99/month USD)
+### Starter Plan
+**Price:** $4.99/month or $49.99/year
 
 **Limits:**
-- ✅ Unlimited active quests
-- ✅ Unlimited tasks per quest
-- ✅ Unlimited AI messages
-- ✅ Advanced analytics & insights
-- ✅ All persona customizations
-- ✅ Advanced streak tracking
-- ✅ Priority AI responses
-- ✅ Export data (JSON/CSV)
-- ✅ Custom quest templates
+- ✅ 5 objectives created by AI per month
+- ✅ 10 quests created by AI per month
+- ✅ Unlimited quests and tasks created manually
+- ✅ Basic analytics, 2 personas
 
 **Features:**
-- Everything in Free +
-- Unlimited usage
-- Advanced AI insights
-- Data export
-- Priority support
+- Everything in Free with higher AI limits
+- More AI-generated objectives and quests
 
 ---
 
-### Pro Plan (Future)
-**Price:** R$ 49,90/month (or $14.99/month USD)
+### Premium Plan
+**Price:** $9.99/month or $99.99/year
 
 **Limits:**
-- ✅ Everything in Premium +
-- ✅ Team collaboration (up to 5 members)
-- ✅ Shared quests & goals
-- ✅ Advanced reporting
-- ✅ API access
-- ✅ White-label options
+- ✅ 15 objectives created by AI per month
+- ✅ 30 quests created by AI per month
+- ✅ Unlimited quests and tasks created manually
+- ✅ Advanced analytics & insights
+- ✅ All persona customizations
+- ✅ Export data (JSON/CSV)
+- ✅ Priority support
+
+**Features:**
+- Everything in Starter +
+- Highest AI generation limits
+- Data export
+- Priority support
 
 ---
 
@@ -70,11 +70,11 @@ This document outlines the subscription plans, database schema, and implementati
 ```sql
 CREATE TABLE subscription_plans (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(50) NOT NULL UNIQUE, -- 'free', 'premium', 'pro'
-  display_name VARCHAR(100) NOT NULL, -- 'Free', 'Premium', 'Pro'
+  name VARCHAR(50) NOT NULL UNIQUE, -- 'free', 'starter', 'premium'
+  display_name VARCHAR(100) NOT NULL, -- 'Free', 'Starter', 'Premium'
   price_monthly DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
   price_yearly DECIMAL(10, 2), -- Optional: annual pricing
-  currency VARCHAR(3) NOT NULL DEFAULT 'BRL', -- 'BRL', 'USD'
+  currency VARCHAR(3) NOT NULL DEFAULT 'USD', -- 'USD'
   stripe_price_id_monthly VARCHAR(255), -- Stripe Price ID
   stripe_price_id_yearly VARCHAR(255),
   
@@ -96,9 +96,10 @@ CREATE TABLE subscription_plans (
 );
 
 -- Insert default plans
-INSERT INTO subscription_plans (name, display_name, price_monthly, currency, max_quests, max_tasks_per_quest, max_daily_messages, max_personas) VALUES
-('free', 'Free', 0.00, 'BRL', 1, 10, 20, 1),
-('premium', 'Premium', 29.90, 'BRL', NULL, NULL, NULL, NULL);
+INSERT INTO subscription_plans (name, display_name, price_monthly, price_yearly, currency, max_quests, max_tasks_per_quest, max_daily_messages, max_personas, advanced_analytics, data_export, priority_support) VALUES
+('free', 'Free', 0.00, NULL, 'USD', 1, 10, 20, 1, false, false, false),
+('starter', 'Starter', 4.99, 49.99, 'USD', 3, 25, 50, 2, false, false, false),
+('premium', 'Premium', 9.99, 99.99, 'USD', NULL, NULL, NULL, NULL, true, true, true);
 
 -- Create index
 CREATE INDEX idx_subscription_plans_name ON subscription_plans(name);

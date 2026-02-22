@@ -16,6 +16,10 @@ function buildNLPQuestioningPrompt(persona = { tone: 'neutral', specialization: 
     ? '**CRITICAL — LANGUAGE:** You MUST respond ONLY in English. Every message to the user must be written entirely in English. Do not use Portuguese. Use the same structure (e.g. **Question:**, **NLP Objective Complete!**) but in English.'
     : '**CRÍTICO — IDIOMA:** Você DEVE responder SOMENTE em português (Brasil). Cada mensagem ao usuário deve ser escrita inteiramente em português.';
 
+  const noRephraseRule = isEnglish
+    ? '**FORBIDDEN:** Never ask the user to "share the text you\'d like me to rephrase" or "send the text you want me to rewrite". The user is always either (1) stating a goal or (2) answering your question (e.g. what they\'ll give up, timeline, context). In both cases: acknowledge what they said and ask the next NLP question. You are a goal coach, not a text rewriter.'
+    : '**PROIBIDO:** Nunca peça ao usuário "envie o texto que você gostaria que eu reformulasse" ou "compartilhe o texto que você gostaria que eu reescrevesse" ou "send the text you want me to rephrase". O usuário está sempre ou (1) declarando um objetivo ou (2) respondendo à sua pergunta (ex.: o que vai renunciar, prazo, contexto). Em ambos os casos: reconheça o que ele disse e faça a próxima pergunta NLP. Você é um coach de objetivos, não um revisor de texto.';
+
   const toneInstructions = {
     aggressive: 'Seja direto e desafiador. Pressione o usuário. Identifique desculpas.',
     gentle: 'Seja encorajador e solidário. Foque no progresso, não na perfeição.',
@@ -41,7 +45,38 @@ function buildNLPQuestioningPrompt(persona = { tone: 'neutral', specialization: 
   // Se há um tema predefinido, usar o prompt temático
   const themePrompt = persona.theme ? getThemePrompt(persona.theme) : '';
 
+  const understandingRule = isEnglish
+    ? `
+## UNDERSTANDING THE USER (CRITICAL):
+
+When the user writes a message, they are either (1) stating their GOAL or (2) answering YOUR previous question. You do NOT rewrite or rephrase text for them.
+
+- User says "I want to gain more muscle" / "I want to run 5k" / "My goal is to learn English" → they are STATING THEIR GOAL. You must acknowledge it and ask the next NLP question (e.g. timeline, context).
+
+**WRONG (never do this):** "Please share the text you want me to rewrite." / "Please provide the text you'd like me to rephrase."
+**RIGHT:** "Great! Gaining more muscle is a goal worth pursuing. To work on this as a quest: how long do you imagine it taking? Do you have a timeline in mind?"
+
+- User says "In three months" / "I'll have to give up some free time" → they are ANSWERING your question. Acknowledge and ask the next question.
+
+You are a goal coach. You never ask the user to "send text" or "share text to rewrite". You only ask NLP questions (timeline, context, resources, etc.).`
+    : `
+## ENTENDENDO O USUÁRIO (CRÍTICO):
+
+Quando o usuário escreve uma mensagem, ele está (1) declarando o OBJETIVO dele ou (2) respondendo à SUA pergunta anterior. Você NÃO reescreve nem reformula texto para ele.
+
+- Usuário diz "Eu quero ganhar mais músculos" / "Quero correr 5 km" / "Meu objetivo é aprender inglês" → ele está DECLARANDO O OBJETIVO. Você deve reconhecê-lo e fazer a próxima pergunta NLP (ex.: prazo, contexto).
+
+**ERRADO (nunca faça):** "Por favor, compartilhe o texto que você gostaria que eu reescrevesse." / "Manda o texto que você quer que eu reescreva."
+**CERTO:** "Ótimo! Ganhar mais músculos é um objetivo que vale a pena. Para trabalharmos isso como uma quest: em quanto tempo você imagina realizando isso? Tem alguma data em mente?"
+
+- Usuário diz "Em três meses" / "Vou ter que renunciar tempo com a família" → ele está RESPONDENDO sua pergunta. Reconheça e faça a próxima pergunta.
+
+Você é um coach de objetivos. Você nunca pede ao usuário para "enviar texto" ou "compartilhar texto para reescrever". Você só faz perguntas NLP (prazo, contexto, recursos, etc.).`;
+
   return `${languageRule}
+
+${noRephraseRule}
+${understandingRule}
 
 ---
 
@@ -55,6 +90,10 @@ ${themePrompt ? `**Seu Personagem:**\n${themePrompt}\n\n` : ''}**Sua Personalida
 ## SEU PAPEL:
 
 Sua missão é ajudar o usuário a criar objetivos usando os 8 critérios NLP. Você deve fazer perguntas naturais e conversacionais para coletar as informações faltantes.
+
+## CRÍTICO — RECONHECER O OBJETIVO DO USUÁRIO:
+
+Quando o usuário **declara um desejo ou meta** (ex.: "Eu quero comprar um barco", "Quero aprender inglês", "Gostaria de emagrecer", "Meu objetivo é mudar de carreira"), isso **JÁ É o objetivo dele**. Seu papel é ajudá-lo a definir esse objetivo com os 8 critérios NLP — **nunca** pedir "texto para reformular" ou "envie o texto que você gostaria que eu reformulasse". Você não é um revisor de texto; é um coach de objetivos. Reconheça o objetivo, valide em uma frase e faça a **próxima pergunta natural** (ex.: contexto, sensorial, recursos). Exemplo: usuário diz "Eu quero comprar um barco" → responda algo como "Ótimo! Comprar um barco é um objetivo que vale a pena. Para trabalharmos isso como uma quest: em quanto tempo você imagina realizando isso? Tem alguma data em mente?" — Never ask for "text to rephrase" / "envie o texto que você gostaria que eu reformulasse"; the user is stating their goal, not asking you to rewrite text.
 
 ## OS 8 CRITÉRIOS NLP:
 
@@ -231,13 +270,20 @@ export async function askNLPQuestionViaLLM(userMessage, history = [], persona = 
       model: 'gpt-4o-mini',
       messages: messages,
       temperature: temperature,
-      max_tokens: 500
+      max_tokens: 900
     });
 
     let response = completion.choices[0].message.content;
     console.log('[NLP LLM] Response received:', response.substring(0, 100));
 
-    // Reescrever usando a persona para garantir que siga o tom e estilo
+    // Se for objetivo NLP completo, NÃO reescrever — o parse depende do formato exato (🎯 Objetivo NLP Completo!, **Título:**, etc.)
+    const parsedBeforeRewrite = extractNLPFromLLMResponse(response);
+    if (parsedBeforeRewrite && parsedBeforeRewrite.complete) {
+      console.log('[NLP LLM] Objetivo completo detectado; mantendo resposta original para parse e aprovação.');
+      return response;
+    }
+
+    // Reescrever usando a persona para perguntas normais
     try {
       const rewritten = await rewriteWithPersona(response, persona, locale);
       if (rewritten && rewritten !== response) {
@@ -246,7 +292,6 @@ export async function askNLPQuestionViaLLM(userMessage, history = [], persona = 
       }
     } catch (rewriteError) {
       console.error('[NLP LLM] Error rewriting with persona:', rewriteError);
-      // Continuar com resposta original se reescrita falhar
     }
 
     return response;

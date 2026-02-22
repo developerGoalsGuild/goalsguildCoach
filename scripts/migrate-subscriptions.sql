@@ -117,11 +117,12 @@ CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
 CREATE INDEX IF NOT EXISTS idx_payments_stripe_payment_intent_id ON payments(stripe_payment_intent_id);
 CREATE INDEX IF NOT EXISTS idx_daily_message_usage_user_date ON daily_message_usage(user_id, date);
 
--- 7. Insert default subscription plans
-INSERT INTO subscription_plans (name, display_name, price_monthly, currency, max_quests, max_tasks_per_quest, max_daily_messages, max_personas, advanced_analytics, data_export)
+-- 7. Insert default subscription plans (Free, Starter, Premium — USD)
+INSERT INTO subscription_plans (name, display_name, price_monthly, price_yearly, currency, max_quests, max_tasks_per_quest, max_daily_messages, max_personas, advanced_analytics, data_export, priority_support)
 VALUES
-  ('free', 'Free', 0.00, 'BRL', 1, 10, 20, 1, false, false),
-  ('premium', 'Premium', 29.90, 'BRL', NULL, NULL, NULL, NULL, true, true)
+  ('free', 'Free', 0.00, NULL, 'USD', 1, 10, 20, 1, false, false, false),
+  ('starter', 'Starter', 4.99, 49.99, 'USD', 3, 25, 50, 2, false, false, false),
+  ('premium', 'Premium', 9.99, 99.99, 'USD', NULL, NULL, NULL, NULL, true, true, true)
 ON CONFLICT (name) DO NOTHING;
 
 -- 8. Set default plan for existing users
@@ -138,12 +139,16 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+-- Drop triggers if they exist, then create them
+DROP TRIGGER IF EXISTS update_subscription_plans_updated_at ON subscription_plans;
 CREATE TRIGGER update_subscription_plans_updated_at BEFORE UPDATE ON subscription_plans
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_user_subscriptions_updated_at ON user_subscriptions;
 CREATE TRIGGER update_user_subscriptions_updated_at BEFORE UPDATE ON user_subscriptions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_daily_message_usage_updated_at ON daily_message_usage;
 CREATE TRIGGER update_daily_message_usage_updated_at BEFORE UPDATE ON daily_message_usage
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

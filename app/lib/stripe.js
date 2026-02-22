@@ -5,13 +5,19 @@
 
 import Stripe from 'stripe';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  console.warn('STRIPE_SECRET_KEY not found in environment variables');
-}
+let stripe = null;
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-12-18.acacia',
-});
+function getStripe() {
+  if (stripe) return stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    console.warn('STRIPE_SECRET_KEY not found in environment variables');
+    stripe = new Stripe('sk_test_placeholder_build', { apiVersion: '2024-12-18.acacia' });
+    return stripe;
+  }
+  stripe = new Stripe(key, { apiVersion: '2024-12-18.acacia' });
+  return stripe;
+}
 
 /**
  * Create a Stripe checkout session
@@ -54,7 +60,7 @@ export async function createCheckoutSession({
       sessionParams.customer_email = null; // Will be collected during checkout
     }
 
-    const session = await stripe.checkout.sessions.create(sessionParams);
+    const session = await getStripe().checkout.sessions.create(sessionParams);
     return session;
   } catch (error) {
     console.error('Error creating checkout session:', error);
@@ -71,7 +77,7 @@ export async function createCheckoutSession({
 export async function getOrCreateCustomer(email, userId) {
   try {
     // Try to find existing customer by email
-    const customers = await stripe.customers.list({
+    const customers = await getStripe().customers.list({
       email: email,
       limit: 1,
     });
@@ -81,7 +87,7 @@ export async function getOrCreateCustomer(email, userId) {
     }
 
     // Create new customer
-    const customer = await stripe.customers.create({
+    const customer = await getStripe().customers.create({
       email: email,
       metadata: {
         userId: userId,
@@ -102,7 +108,7 @@ export async function getOrCreateCustomer(email, userId) {
  */
 export async function getSubscription(subscriptionId) {
   try {
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
     return subscription;
   } catch (error) {
     console.error('Error getting subscription:', error);
@@ -119,10 +125,10 @@ export async function getSubscription(subscriptionId) {
 export async function cancelSubscription(subscriptionId, immediately = false) {
   try {
     if (immediately) {
-      const subscription = await stripe.subscriptions.cancel(subscriptionId);
+      const subscription = await getStripe().subscriptions.cancel(subscriptionId);
       return subscription;
     } else {
-      const subscription = await stripe.subscriptions.update(subscriptionId, {
+      const subscription = await getStripe().subscriptions.update(subscriptionId, {
         cancel_at_period_end: true,
       });
       return subscription;
@@ -140,7 +146,7 @@ export async function cancelSubscription(subscriptionId, immediately = false) {
  */
 export async function resumeSubscription(subscriptionId) {
   try {
-    const subscription = await stripe.subscriptions.update(subscriptionId, {
+    const subscription = await getStripe().subscriptions.update(subscriptionId, {
       cancel_at_period_end: false,
     });
     return subscription;
@@ -158,9 +164,9 @@ export async function resumeSubscription(subscriptionId) {
  */
 export async function updateSubscription(subscriptionId, newPriceId) {
   try {
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
     
-    const updatedSubscription = await stripe.subscriptions.update(subscriptionId, {
+    const updatedSubscription = await getStripe().subscriptions.update(subscriptionId, {
       items: [
         {
           id: subscription.items.data[0].id,
@@ -191,7 +197,7 @@ export function verifyWebhookSignature(payload, signature) {
   }
 
   try {
-    const event = stripe.webhooks.constructEvent(
+    const event = getStripe().webhooks.constructEvent(
       payload,
       signature,
       webhookSecret
@@ -203,4 +209,4 @@ export function verifyWebhookSignature(payload, signature) {
   }
 }
 
-export default stripe;
+export { getStripe };

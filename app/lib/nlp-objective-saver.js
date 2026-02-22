@@ -202,7 +202,7 @@ export async function saveNLPOjective(pool, sessionId, objective) {
   try {
     console.log('[NLP Save] Salvando objetivo NLP:', objective.title);
 
-    // Salvar na tabela goals (unificada com campos NLP)
+    // Salvar na tabela goals (unificada com campos NLP); created_by_ai = true (from chat/AI)
     const result = await pool.query(
       `INSERT INTO goals (
         session_id,
@@ -220,8 +220,9 @@ export async function saveNLPOjective(pool, sessionId, objective) {
         nlp_criteria_context,
         nlp_criteria_resources,
         nlp_criteria_evidence,
-        status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        status,
+        created_by_ai
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, true)
       RETURNING id`,
       [
         sessionId,

@@ -5,6 +5,9 @@
  *
  * Uso: TEST_EMAIL=user@test.com TEST_PASSWORD=senha node scripts/simulate-coach-conversation.js
  * Ou: já logado no browser, execute e ele usará o contexto existente
+ *
+ * Nota: Planos de assinatura limitam objetivos/quests criados por IA (ex.: Free: 2 objetivos AI, 2 quests AI/mês).
+ * Se o usuário atingir o limite, a API pode retornar 403 e a resposta do coach indicará upgrade.
  */
 
 const { chromium } = require('playwright');
@@ -88,7 +91,9 @@ async function run() {
     await page.waitForTimeout(4000);
 
     const pageContent = await page.content();
-    if (pageContent.includes('Quest criada com sucesso')) {
+    if (pageContent.includes('limit') && (pageContent.includes('Upgrade') || pageContent.includes('limit'))) {
+      console.log('⚠️ Limite de assinatura atingido (objetivos ou quests por IA). Faça upgrade do plano.');
+    } else if (pageContent.includes('Quest criada com sucesso')) {
       console.log('✅ Objetivo salvo e quest criada com sucesso!');
     } else if (pageContent.includes('Objetivo NLP salvo com sucesso') || pageContent.includes('Objetivo salvo')) {
       console.log('✅ Objetivo salvo com sucesso!');

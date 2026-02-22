@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authFetch } from '../../lib/auth-helpers';
 import TopNavigation from '../../components/TopNavigation';
 import { useTranslations } from '../../lib/i18n';
 
-export default function NewReminderPage() {
+function NewReminderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const t = useTranslations('reminders');
@@ -310,5 +310,17 @@ export default function NewReminderPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function NewReminderPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ paddingTop: '60px', minHeight: '100vh', background: '#0a0a0a', color: '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        Loading…
+      </div>
+    }>
+      <NewReminderContent />
+    </Suspense>
   );
 }

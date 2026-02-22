@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '../../lib/db';
 import { verifyJWT, getAuthToken } from '../../lib/auth';
 import { TABLES, COLS } from '../../lib/db-schema';
+import { checkSubscriptionLimit } from '../../lib/subscription.js';
 
 // GET all quests (authenticated)
 export async function GET(request) {
@@ -83,6 +84,14 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Target date is required (YYYY-MM-DD)' }, { status: 400 });
     }
 
+    const manualLimit = await checkSubscriptionLimit(decoded.userId, 'quests_manual');
+    if (!manualLimit.allowed) {
+      return NextResponse.json(
+        { error: manualLimit.message || 'You have reached your limit of manually created quests. Upgrade your plan for more.' },
+        { status: 403 }
+      );
+    }
+
     // Map difficulty: API accepts numeric (1-5) or string ('easy','medium','hard','epic')
     const DIFFICULTY_MAP = { 1: 'easy', 2: 'easy', 3: 'medium', 4: 'hard', 5: 'epic' };
     const validStrings = ['easy', 'medium', 'hard', 'epic'];
@@ -121,6 +130,13 @@ export async function POST(request) {
     }
     insertCols.push('target_date');
     insertVals.push(targetDateStr);
+    const hasCreatedByAi = (await pool.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'quests' AND column_name = 'created_by_ai'`
+    )).rows.length > 0;
+    if (hasCreatedByAi) {
+      insertCols.push('created_by_ai');
+      insertVals.push(false);
+    }
 
     const placeholders = insertCols.map((_, i) => (i === 0 ? '$1::text' : `$${i + 1}`)).join(', ');
     const result = await pool.query(

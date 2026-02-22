@@ -26,6 +26,7 @@ export default function CoachClient() {
   const [savingPersonality, setSavingPersonality] = useState(false);
   const [currentPersonaName, setCurrentPersonaName] = useState(null);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
   const welcomeMessageSetRef = useRef(false);
   const personalityLoadedRef = useRef(false);
   const predefinedPersonas = getAllPredefinedPersonas();
@@ -53,6 +54,12 @@ export default function CoachClient() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (!isCheckingAuth && !isLoading) {
+      inputRef.current?.focus();
+    }
+  }, [isCheckingAuth, isLoading]);
 
   useEffect(() => {
     const loadPersonality = async () => {
@@ -448,12 +455,14 @@ export default function CoachClient() {
 
           <div style={inputAreaStyle}>
             <textarea
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder={isMobile ? t('inputPlaceholderMobile') : t('inputPlaceholderDesktop')}
               disabled={isLoading}
               style={inputStyle}
+              autoFocus
             />
             <button
               onClick={sendMessage}

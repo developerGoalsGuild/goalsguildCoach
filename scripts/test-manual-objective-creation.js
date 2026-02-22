@@ -1,5 +1,6 @@
 // Script para testar criação manual de objetivo NLP completo
 // Simula o formulário manual preenchendo todos os 8 critérios NLP
+// Nota: Objetivos criados manualmente (POST /api/goals) não contam no limite de "objectives by AI".
 
 const BASE_URL = 'http://localhost:3002';
 

@@ -6,6 +6,7 @@
 
 import { getPool } from './db';
 import { generateAndInsertQuestTasks } from './generate-quest-tasks';
+import { checkSubscriptionLimit } from './subscription.js';
 
 function generateQuestTitle(objective) {
   const title = objective.title || objective.statement || 'Quest';
@@ -64,6 +65,11 @@ function generateMilestones(objective) {
 export async function createQuestFromObjective(sessionId, objectiveId) {
   const pool = getPool();
   try {
+    const limitCheck = await checkSubscriptionLimit(sessionId, 'quests_ai');
+    if (!limitCheck.allowed) {
+      return { success: false, error: limitCheck.message || 'Quest AI limit reached for this month.' };
+    }
+
     const objectiveResult = await pool.query(`
       SELECT id as objective_id, title, statement, description, category,
         nlp_criteria_positive, nlp_criteria_sensory, nlp_criteria_compelling,
@@ -96,6 +102,7 @@ export async function createQuestFromObjective(sessionId, objectiveId) {
     if (has('estimated_xp')) { insertCols.push('estimated_xp'); insertVals.push(inferXPReward(objective)); }
     if (has('start_date')) { insertCols.push('start_date'); insertVals.push(new Date()); }
     if (has('target_date')) { insertCols.push('target_date'); insertVals.push(objective.target_date || null); }
+    if (has('created_by_ai')) { insertCols.push('created_by_ai'); insertVals.push(true); }
 
     const placeholders = insertCols.map((_, i) => `$${i + 1}`).join(', ');
     const questResult = await pool.query(`

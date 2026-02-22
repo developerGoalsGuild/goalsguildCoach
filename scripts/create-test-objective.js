@@ -1,7 +1,11 @@
 // Criar objetivo NLP Well-Formed para o usuário de teste
 const http = require('http');
 
-const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI0ZDJmMmIzZS0xOTU3LTQxODMtOGYxMy0xMmJjNTlkMTgwZjYiLCJlbWFpbCI6InRlc3RlQGdvYWxzZ3VpbGQuY29tIiwiaWF0IjoxNzcwOTc0NjY3LCJleHAiOjE3NzM1NjY2Njd9.dSvyByb4aDR9GDGTMKZsFmZ7V6HmX24_-40D2VZUBgQ';
+const TOKEN = process.env.TEST_TOKEN;
+if (!TOKEN) {
+  console.error('Missing TEST_TOKEN. Set it in .env or run: TEST_TOKEN=<jwt> node scripts/create-test-objective.js');
+  process.exit(1);
+}
 
 const objective = {
   statement: "Quero atingir nível B1 de inglês em 6 meses, estudando 1 hora por dia, 5 dias por semana",

@@ -19,6 +19,7 @@ export default function TopNavigation() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [levelData, setLevelData] = useState(null);
+  const [planName, setPlanName] = useState(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -37,12 +38,23 @@ export default function TopNavigation() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    authFetch('/api/subscription/current')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const name = data?.subscription?.display_name || data?.subscription?.plan_name || 'Free';
+        setPlanName(name);
+      })
+      .catch(() => setPlanName('Free'));
+  }, []);
+
   const navLinks = [
     { href: '/', label: tNav('home') },
     { href: '/coach', label: tNav('coach') },
     { href: '/objectives', label: tNav('objectives') },
     { href: '/quests', label: tNav('quests') },
     { href: '/tasks', label: tNav('tasks') },
+    { href: '/profile', label: tNav('profile') },
   ];
 
   return (
@@ -66,6 +78,16 @@ export default function TopNavigation() {
           </nav>
 
           <div className="top-nav__right">
+            {planName && (
+              <Link
+                href="/profile"
+                className="btn btn-dark"
+                title={tNav('profile')}
+                style={{ fontSize: '0.8rem', padding: '0.35rem 0.55rem', textTransform: 'capitalize' }}
+              >
+                📋 {planName}
+              </Link>
+            )}
             {levelData && (
               <Link
                 href="/analytics"
@@ -107,6 +129,11 @@ export default function TopNavigation() {
         {mobileMenuOpen && (
           <div className="mobile-menu glass-card">
             <div className="mobile-menu__links">
+              {planName && (
+                <Link href="/profile" onClick={() => setMobileMenuOpen(false)} style={{ fontSize: '0.9rem', color: 'var(--text-soft)' }}>
+                  📋 {planName}
+                </Link>
+              )}
               {levelData && (
                 <Link href="/analytics" onClick={() => setMobileMenuOpen(false)} style={{ fontSize: '0.9rem', color: 'var(--text-soft)' }}>
                   ⚡ {tLevel('levelPrefix')} {levelData.level ?? 1} – {getLevelTitle(levelData.level ?? 1)}
@@ -156,7 +183,7 @@ export default function TopNavigation() {
             href={item.href}
             className={`mobile-bottom-item${pathname === item.href ? ' active' : ''}`}
           >
-            <span>{item.href === '/' ? '🏠' : item.href === '/coach' ? '🤖' : item.href === '/objectives' ? '🎯' : item.href === '/quests' ? '⚔️' : '✅'}</span>
+            <span>{item.href === '/' ? '🏠' : item.href === '/coach' ? '🤖' : item.href === '/objectives' ? '🎯' : item.href === '/quests' ? '⚔️' : item.href === '/profile' ? '👤' : '✅'}</span>
             <span>{item.label}</span>
           </Link>
         ))}

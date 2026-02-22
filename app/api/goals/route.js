@@ -211,7 +211,7 @@ export async function POST(request) {
 
     const pool = getPool();
 
-    // Criar objetivo
+    // Criar objetivo (manual = created_by_ai false)
     const result = await pool.query(`
       INSERT INTO goals (
         session_id,
@@ -228,9 +228,10 @@ export async function POST(request) {
         nlp_criteria_context,
         nlp_criteria_resources,
         nlp_criteria_evidence,
-        status
+        status,
+        created_by_ai
       ) VALUES (
-        $1::text, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+        $1::text, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, false
       )
       RETURNING id, title, is_nlp_complete
     `, [

@@ -10,6 +10,7 @@ import nlpQuestionLLM from '../../lib/nlp-llm-questions';
 import { createQuestFromObjective } from '../../lib/create-quest-from-objective';
 import { getUserFromToken } from '../../lib/auth';
 import { getCoachResponse, rewriteWithPersona } from '../../lib/openai';
+import { checkSubscriptionLimit } from '../../lib/subscription.js';
 
 /**
  * Armazena objetivos pendentes de aprovação
@@ -180,8 +181,9 @@ async function saveNLPOjective(pool, sessionId, objective) {
         nlp_criteria_context,
         nlp_criteria_resources,
         nlp_criteria_evidence,
-        status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        status,
+        created_by_ai
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, true)
       RETURNING id`,
       [
         sessionId,
@@ -341,6 +343,16 @@ export async function POST(request) {
       if (isApprovalMessage(message)) {
         console.log('[NLP Approval] Objetivo APROVADO pelo usuário!');
 
+        const objectivesLimit = await checkSubscriptionLimit(sessionId, 'objectives_ai');
+        if (!objectivesLimit.allowed) {
+          const limitMessage = objectivesLimit.message || "You've reached your AI objectives limit this month. Upgrade your plan for more.";
+          await pool.query(
+            'INSERT INTO messages (session_id, role, content) VALUES ($1, $2, $3)',
+            [sessionId, 'assistant', limitMessage]
+          );
+          return NextResponse.json({ message: limitMessage });
+        }
+
         // Salvar objetivo
         const saveResult = await saveNLPOjective(
           pool,
@@ -451,6 +463,32 @@ export async function POST(request) {
       locale
     );
 
+    // Corrigir resposta errada: se o LLM pediu "texto para reformular/reescrever", o usuário estava declarando objetivo OU respondendo à pergunta — nunca pedir isso
+    if (llmResult.success && llmResult.response) {
+      const responseAsksRephrase = /reformulasse|reescrevesse|rephrase|compartilhe o texto que|envie o texto que|send.*text.*rephrase|text you want me to rewrite|text you'd like me to rewrite|text you would like me to rewrite|provide the text you want|share the text you'd like|drop the text you want|forgot to share the text|manda o texto que você quer que eu reescreva|texto que você quer que eu reescreva/i.test(llmResult.response);
+      if (responseAsksRephrase) {
+        const trimmed = message.trim();
+        const looksLikeGoal = /\b(quero|gostaria de|meu objetivo|desejo|pretendo|i want to|my goal is|i'd like to|i would like to)\b/i.test(trimmed);
+        const looksLikeAnswer = /\b(vou ter que|tenho que|renunciar|deixar de|abrir mão|em (três|tres|\d+)\s*meses|preciso|i'll have to|i will have to|i have to|give up|sacrifice|in (three|\d+)\s*months|i need to|wake up earlier)\b/i.test(trimmed);
+        if (looksLikeGoal) {
+          const fallbackPt = `Ótimo! "${trimmed}" é um objetivo que vale a pena. Para trabalharmos isso como uma quest: em quanto tempo você imagina realizando isso? Tem alguma data em mente?`;
+          const fallbackEn = `Great! "${trimmed}" is a goal worth pursuing. To work on this as a quest: how long do you imagine it taking? Do you have a timeline in mind?`;
+          llmResult.response = locale === 'en-US' ? fallbackEn : fallbackPt;
+          console.log('[NLP LLM] Resposta corrigida: LLM havia pedido reformulação; substituída por reconhecimento do objetivo.');
+        } else if (looksLikeAnswer) {
+          const fallbackPt = 'Entendi! Obrigado por compartilhar. Como você imagina lidar com esses desafios na sua rotina para seguir em frente com seu objetivo?';
+          const fallbackEn = 'Got it! Thanks for sharing. How do you imagine handling these challenges in your routine to move forward with your goal?';
+          llmResult.response = locale === 'en-US' ? fallbackEn : fallbackPt;
+          console.log('[NLP LLM] Resposta corrigida: LLM havia pedido texto para reescrever; usuário estava respondendo à pergunta — substituída por reconhecimento e próxima pergunta.');
+        } else {
+          const fallbackPt = 'Entendi sua resposta. Para continuarmos: o que mais você gostaria de compartilhar sobre esse objetivo?';
+          const fallbackEn = 'I understood your answer. To continue: what else would you like to share about this goal?';
+          llmResult.response = locale === 'en-US' ? fallbackEn : fallbackPt;
+          console.log('[NLP LLM] Resposta corrigida: LLM havia pedido texto para reescrever; substituída por reconhecimento genérico.');
+        }
+      }
+    }
+
     if (llmResult.success) {
       if (llmResult.complete) {
         console.log('[NLP LLM] Objetivo NLP completo detectado!');
@@ -499,6 +537,30 @@ export async function POST(request) {
 
     if (hasOpenAI) {
       try {
+        // Load user profile for coach personalization (name, daily_work_hours, focus_area, context_for_coach)
+        let userProfile = null;
+        try {
+          const profileCols = await pool.query(
+            `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name IN ('name', 'daily_work_hours', 'focus_area', 'context_for_coach')`
+          );
+          const cols = profileCols.rows.map((r) => r.column_name);
+          if (cols.length > 0) {
+            const selectCols = ['name', ...cols.filter((c) => c !== 'name')].join(', ');
+            const userRow = await pool.query(`SELECT ${selectCols} FROM users WHERE id = $1`, [sessionId]);
+            if (userRow.rows.length > 0) {
+              const u = userRow.rows[0];
+              const parts = [];
+              if (u.name) parts.push(`Name: ${u.name}`);
+              if (u.daily_work_hours != null) parts.push(`Daily work hours: ${u.daily_work_hours}`);
+              if (u.focus_area) parts.push(`Focus area: ${u.focus_area}`);
+              if (u.context_for_coach) parts.push(`Context: ${u.context_for_coach}`);
+              if (parts.length > 0) userProfile = parts.join('\n');
+            }
+          }
+        } catch (profileErr) {
+          console.warn('[Chat] Could not load user profile:', profileErr.message);
+        }
+
         // Converter histórico para formato esperado por getCoachResponse
         const messagesForOpenAI = history.map(msg => ({
           role: msg.role,
@@ -506,8 +568,18 @@ export async function POST(request) {
         }));
         messagesForOpenAI.push({ role: 'user', content: message });
 
-        const coachResponse = await getCoachResponse(messagesForOpenAI, persona, locale);
-        
+        let coachResponse = await getCoachResponse(messagesForOpenAI, persona, locale, userProfile);
+
+        // Corrigir se coach pediu "reformular" mas o usuário declarou um objetivo
+        const looksLikeGoal = /\b(quero|gostaria de|meu objetivo|desejo|pretendo|i want to|my goal is|i'd like to)\b/i.test(message.trim());
+        const responseAsksRephrase = /reformulasse|rephrase|envie o texto que|send.*text.*rephrase/i.test(coachResponse || '');
+        if (looksLikeGoal && responseAsksRephrase) {
+          coachResponse = locale === 'en-US'
+            ? `Great! "${message.trim()}" is a goal worth pursuing. To work on this as a quest: how long do you imagine it taking? Do you have a timeline in mind?`
+            : `Ótimo! "${message.trim()}" é um objetivo que vale a pena. Para trabalharmos isso como uma quest: em quanto tempo você imagina realizando isso? Tem alguma data em mente?`;
+          console.log('[Chat] Resposta do coach corrigida: havia pedido reformulação.');
+        }
+
         await pool.query(
           'INSERT INTO messages (session_id, role, content) VALUES ($1, $2, $3)',
           [sessionId, 'assistant', coachResponse]

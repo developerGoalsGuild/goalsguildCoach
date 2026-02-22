@@ -2,7 +2,11 @@
 const http = require('http');
 
 const BASE_URL = 'localhost:3002';
-const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI0ZDJmMmIzZS0xOTU3LTQxODMtOGYxMy0xMmJjNTlkMTgwZjYiLCJlbWFpbCI6InRlc3RlQGdvYWxzZ3VpbGQuY29tIiwiaWF0IjoxNzcwOTc0NjY3LCJleHAiOjE3NzM1NjY2Njd9.dSvyByb4aDR9GDGTMKZsFmZ7V6HmX24_-40D2VZUBgQ';
+const TOKEN = process.env.TEST_TOKEN;
+if (!TOKEN) {
+  console.error('Missing TEST_TOKEN. Set it in .env or run: TEST_TOKEN=<jwt> node scripts/test-all-pages-with-auth.js');
+  process.exit(1);
+}
 
 const pages = [
   { path: '/', name: 'Home' },

@@ -276,6 +276,44 @@ async function testDailySummary() {
   }
 }
 
+async function testSubscription() {
+  console.log('\n💳 TESTE 9: Assinatura');
+  console.log('─────────────────────────────────');
+  try {
+    const plansRes = await request('GET', '/api/subscription/plans', null, false);
+    if (plansRes.status === 200 && plansRes.data.plans) {
+      console.log(`✅ Planos carregados: ${plansRes.data.plans.length} planos`);
+      plansRes.data.plans.forEach((p) => {
+        console.log(`   - ${p.display_name}: ${p.currency} ${p.price_monthly}/${p.price_yearly ?? '—'}`);
+      });
+    } else {
+      console.log('⚠️ Falha ao buscar planos ou API não disponível');
+    }
+    const currentRes = await request('GET', '/api/subscription/current');
+    if (currentRes.status === 200 && currentRes.data) {
+      const sub = currentRes.data.subscription || currentRes.data;
+      console.log(`✅ Assinatura atual: ${sub.display_name || sub.plan_name || 'N/A'}`);
+      if (currentRes.data.usage) {
+        const u = currentRes.data.usage;
+        if (u.objectives_ai) console.log(`   Objetivos IA (mês): ${u.objectives_ai.current ?? 0}/${u.objectives_ai.limit ?? '∞'}`);
+        if (u.quests_ai) console.log(`   Quests IA (mês): ${u.quests_ai.current ?? 0}/${u.quests_ai.limit ?? '∞'}`);
+        if (u.quests_manual) console.log(`   Quests manuais: ${u.quests_manual.current ?? 0}/${u.quests_manual.limit ?? '∞'}`);
+      }
+      return true;
+    } else if (currentRes.status === 401) {
+      console.log('⚠️ 401 (precisa estar logado para /api/subscription/current)');
+      return true;
+    } else {
+      console.log('❌ Falha ao buscar assinatura atual');
+      console.log(`   Status: ${currentRes.status}`);
+      return false;
+    }
+  } catch (error) {
+    console.log('❌ Erro ao testar assinatura:', error.message);
+    return false;
+  }
+}
+
 // Main
 async function main() {
   console.log('\n🚀 GOALSGUILD COACH - TESTE MANUAL');
@@ -294,6 +332,7 @@ async function main() {
   results.push(await testInsights());
   results.push(await testWeeklyReview());
   results.push(await testDailySummary());
+  results.push(await testSubscription());
 
   // Resumo
   console.log('\n\n═══════════════════════════════════════════');

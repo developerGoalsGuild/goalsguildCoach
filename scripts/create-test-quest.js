@@ -1,7 +1,14 @@
-// Criar uma Quest para o usuário de teste
+/**
+ * Criar uma Quest manual para o usuário de teste.
+ * Nota: No plano Free o limite é 10 quests criadas manualmente; Starter/Premium são ilimitadas.
+ */
 const http = require('http');
 
-const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI0ZDJmMmIzZS0xOTU3LTQxODMtOGYxMy0xMmJjNTlkMTgwZjYiLCJlbWFpbCI6InRlc3RlQGdvYWxzZ3VpbGQuY29tIiwiaWF0IjoxNzcwOTc0NjY3LCJleHAiOjE3NzM1NjY2Njd9.dSvyByb4aDR9GDGTMKZsFmZ7V6HmX24_-40D2VZUBgQ';
+const TOKEN = process.env.TEST_TOKEN;
+if (!TOKEN) {
+  console.error('Missing TEST_TOKEN. Set it in .env or run: TEST_TOKEN=<jwt> node scripts/create-test-quest.js');
+  process.exit(1);
+}
 
 const quest = {
   title: "Aprender Inglês - Nível B1",
@@ -29,7 +36,7 @@ const req = http.request(options, (res) => {
   res.on('data', (chunk) => { data += chunk; });
   res.on('end', () => {
     console.log('Status:', res.statusCode);
-    
+
     try {
       const result = JSON.parse(data);
       if (res.statusCode === 201 || res.statusCode === 200) {
@@ -42,6 +49,10 @@ const req = http.request(options, (res) => {
         console.log('📅 Data Alvo:', new Date(quest.target_date).toLocaleDateString('pt-BR'));
         console.log('\n✅ Usuário de teste agora tem uma quest de aprender inglês!');
         console.log('📊 Acesse /quests para ver a quest criada!');
+      } else if (res.statusCode === 403 && result.error) {
+        console.log('\n⚠️ Limite de assinatura: não foi possível criar quest.');
+        console.log('   Mensagem:', result.error);
+        console.log('   (Plano Free: máx. 10 quests manuais; faça upgrade para ilimitado.)');
       } else if (result.error) {
         console.log('\n❌ Erro ao criar quest:', result.error);
       }

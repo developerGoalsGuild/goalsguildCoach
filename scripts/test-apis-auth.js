@@ -42,7 +42,8 @@ async function testAPIsWithToken(token) {
     { name: 'Reports', url: 'http://localhost:3002/api/reports' },
     { name: 'Achievements', url: 'http://localhost:3002/api/achievements' },
     { name: 'Insights', url: 'http://localhost:3002/api/insights' },
-    { name: 'Daily Summary', url: 'http://localhost:3002/api/daily-summary' }
+    { name: 'Daily Summary', url: 'http://localhost:3002/api/daily-summary' },
+    { name: 'Subscription Current', url: 'http://localhost:3002/api/subscription/current' },
   ];
   
   console.log('🔍 Testando APIs com token...\n');

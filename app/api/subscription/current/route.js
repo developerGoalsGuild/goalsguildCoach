@@ -14,8 +14,8 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const subscription = await getUserSubscription(user.id);
-    const usageStats = await getUserUsageStats(user.id);
+    const subscription = await getUserSubscription(user.userId);
+    const usageStats = await getUserUsageStats(user.userId);
 
     return NextResponse.json({
       subscription: {

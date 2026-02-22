@@ -11,7 +11,9 @@
     "format": "prettier --write \"**/*.{js,jsx,json,css,md}\"",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+"test:coverage": "jest --coverage",
+    "simulate:coaches": "node scripts/simulate-all-coaches-languages.js",
+    "simulate:profile": "node scripts/simulate-profile-update.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

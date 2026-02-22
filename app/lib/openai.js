@@ -70,6 +70,8 @@ ${themePrompt ? `**Your Character:**\n${themePrompt}\n\n` : ''}**Your Persona:**
 5. Celebrate real execution, not just plans
 6. Frame goals as quests - meaningful journeys, not just tasks
 
+**Recognizing the user's goal:** When the user states something they want (e.g. "I want to buy a boat", "Eu quero comprar um barco"), that IS their goal. Acknowledge it and help them define or break it down. Never ask them to "send text to rephrase" or "envie o texto que você gostaria que eu reformulasse" — you are a goal coach, not a text rewriter.
+
 **Quest Breaking (Atomic Habits):**
 When user shares a big goal or life objective:
 - Ask to break it down into micro-tasks (each ≤ 1 day)
@@ -182,7 +184,7 @@ After gathering all 8 criteria:
 - When creating tasks, ask for time estimate to prevent overcommitment`;
 }
 
-export async function getCoachResponse(messages, persona, locale = 'pt-BR') {
+export async function getCoachResponse(messages, persona, locale = 'pt-BR', userProfile = null) {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -198,9 +200,13 @@ export async function getCoachResponse(messages, persona, locale = 'pt-BR') {
     ? `\n\n**CURRENT ACTIVE QUEST:**\nTitle: ${activeQuest.title}\nStatus: ${activeQuest.status}\nMilestones: ${activeQuest.milestones_completed || 0}/${activeQuest.milestones_total || 0} completed\nTasks: ${activeQuest.computed?.total_tasks || 0} total (${activeQuest.computed?.completed_tasks || 0} done)\n`
     : noQuestMsg;
 
+  const profileBlock = userProfile && userProfile.trim()
+    ? `\n\n**User profile (use to personalize):**\n${userProfile.trim()}\n`
+    : '';
+
   const openai = new OpenAI({ apiKey });
 
-  const systemPrompt = getSystemPrompt(persona, locale) + questContext;
+  const systemPrompt = getSystemPrompt(persona, locale) + questContext + profileBlock;
   
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
@@ -285,7 +291,9 @@ export async function rewriteWithPersona(text, persona, locale = 'pt-BR') {
 
   const rewritePrompt = `${languageRule}
 
-You are the GoalsGuild Coach. Rewrite the following text (question or response) to match your persona exactly.
+You are the GoalsGuild Coach. Your task is to REWRITE the text below so it matches your persona. The text below is ALREADY a coach message (a question or response to the user). You must OUTPUT ONLY the rewritten version of that same message.
+
+**CRITICAL:** Your output must be ONLY the rewritten coach message. Do NOT output any request to the user such as "please share the text", "send the text you want me to rewrite", "provide the text you'd like me to rephrase". The text to rewrite is already given below — you only reword it in your persona's voice.
 
 **Your Persona:**
 **Tone:** ${toneInstructions[persona.tone] || toneInstructions.neutral}
@@ -293,19 +301,17 @@ You are the GoalsGuild Coach. Rewrite the following text (question or response) 
 **Archetype:** ${archetypeStyle[persona.archetype] || archetypeStyle.mentor}
 ${themePrompt ? `\n**Your Character:**\n${themePrompt}\n` : ''}
 
-**Original text to rewrite:**
+**Original text to rewrite (output a rewritten version of this only):**
 ${text}
 
 **Instructions:**
-- Keep the same meaning and information
-- Adapt the tone, style, and wording to match your persona exactly
-- If it's a question, make it sound natural in your persona's voice
-- If it's a response, ensure it reflects your archetype and tone
-- Maintain the same language (${isEnglish ? 'English' : 'Portuguese'})
-- Do NOT change the structure if it's a formatted response (e.g., keep markdown, emojis, etc.)
-- Only rewrite the wording to match your persona
+- Output ONLY the rewritten version of the text above. Same meaning, same intent (e.g. same question or acknowledgment).
+- Adapt the tone, style, and wording to match your persona.
+- Keep the same language (${isEnglish ? 'English' : 'Portuguese'}).
+- Do NOT ask the user to send or share any text. Do NOT say "please provide the text" or similar.
+- Do NOT change the structure if it's a formatted response (e.g., keep markdown, emojis).
 
-**Rewritten text:**`;
+**Your output (rewritten text only):**`;
 
   try {
     const openai = new OpenAI({ apiKey });

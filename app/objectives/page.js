@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TopNavigation from '../components/TopNavigation';
 import { useLocale, useTranslations } from '../lib/i18n';
+import { authFetch, isAuthenticated } from '../lib/auth-helpers';
 
 export default function ObjectivesPage() {
   const router = useRouter();
@@ -38,16 +39,17 @@ export default function ObjectivesPage() {
   });
 
   useEffect(() => {
+    if (!isAuthenticated()) {
+      setIsLoading(false);
+      return;
+    }
     fetchObjectives();
     fetchReminders();
   }, []);
 
   const fetchObjectives = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/goals', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch('/api/goals');
       const data = await response.json();
       setObjectives(data.goals || []);
     } catch (error) {
@@ -59,7 +61,7 @@ export default function ObjectivesPage() {
 
   const fetchReminders = async () => {
     try {
-      const response = await fetch('/api/reminders');
+      const response = await authFetch('/api/reminders');
       const data = await response.json();
       setReminders(data.reminders || []);
     } catch (error) {
@@ -69,10 +71,7 @@ export default function ObjectivesPage() {
 
   const fetchMemoryEntries = async (objectiveId) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/goals/${objectiveId}/memory`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authFetch(`/api/goals/${objectiveId}/memory`);
       const data = await response.json();
       setMemoryEntries(data.entries || []);
       setNlpMemory(data.nlpMemory || null);
@@ -84,9 +83,8 @@ export default function ObjectivesPage() {
   const createQuest = async (objectiveId) => {
     if (!confirm(t('createQuestConfirm'))) return;
     try {
-      const response = await fetch('/api/quests/from-objective', {
+      const response = await authFetch('/api/quests/from-objective', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ objectiveId }),
       });
       if (response.ok) {
@@ -105,10 +103,8 @@ export default function ObjectivesPage() {
   const deleteObjective = async (objectiveId) => {
     if (!confirm(t('deleteObjectiveConfirm'))) return;
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/goals/${objectiveId}`, {
+      const response = await authFetch(`/api/goals/${objectiveId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         fetchObjectives();
@@ -122,7 +118,7 @@ export default function ObjectivesPage() {
   const deleteReminder = async (reminderId) => {
     if (!confirm(t('stopReminderConfirm'))) return;
     try {
-      const response = await fetch(`/api/reminders?id=${reminderId}`, { method: 'DELETE' });
+      const response = await authFetch(`/api/reminders?id=${reminderId}`, { method: 'DELETE' });
       if (response.ok) fetchReminders();
     } catch (error) {
       console.error('Error deleting reminder:', error);
@@ -156,13 +152,8 @@ export default function ObjectivesPage() {
 
     setCreating(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/goals', {
+      const response = await authFetch('/api/goals', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify({
           title: newObjective.title.trim(),
           description: newObjective.description.trim() || null,

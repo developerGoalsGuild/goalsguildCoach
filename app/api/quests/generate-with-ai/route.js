@@ -10,6 +10,7 @@ import OpenAI from 'openai';
 import { getPool } from '../../../lib/db';
 import { getUserFromToken } from '../../../lib/auth';
 import { TABLES } from '../../../lib/db-schema';
+import { checkSubscriptionLimit } from '../../../lib/subscription.js';
 
 const XP_BY_DIFFICULTY = { easy: 50, medium: 100, hard: 200, epic: 400 };
 const VALID_DIFFICULTY = ['easy', 'medium', 'hard', 'epic'];
@@ -98,6 +99,14 @@ export async function POST(request) {
 
   const sessionId = user.userId;
   const pool = getPool();
+
+  const questsAiLimit = await checkSubscriptionLimit(sessionId, 'quests_ai');
+  if (!questsAiLimit.allowed) {
+    return NextResponse.json(
+      { error: questsAiLimit.message || 'AI quest limit reached for this month. Upgrade your plan for more.' },
+      { status: 403 }
+    );
+  }
 
   let body = {};
   try {
@@ -305,6 +314,13 @@ export async function POST(request) {
     if (hasTargetDate) {
       qCols.push('target_date');
       qVals.push(quest.target_date || (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d.toISOString().slice(0, 10); })());
+    }
+    const hasCreatedByAi = (await pool.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'quests' AND column_name = 'created_by_ai'`
+    )).rows.length > 0;
+    if (hasCreatedByAi) {
+      qCols.push('created_by_ai');
+      qVals.push(true);
     }
     const placeholders = qCols.map((_, i) => (i === 0 ? '$1::text' : `$${i + 1}`)).join(', ');
     const questInsert = await pool.query(
